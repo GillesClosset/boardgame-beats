@@ -4,7 +4,7 @@ import { BoardGame } from '@/app/types';
 
 // Store the base URL and path separately to ensure we're using the complete path
 const AI_ENDPOINT_BASE = process.env.OVHCLOUD_AI_ENDPOINT_BASE || 'https://llama-3-3-70b-instruct.endpoints.kepler.ai.cloud.ovh.net';
-const AI_ENDPOINT_PATH = '/api/openai_compat/v1/completions';
+const AI_ENDPOINT_PATH = '/api/openai_compat/v1/chat/completions';
 const API_KEY = process.env.OVHCLOUD_API_KEY || '';
 
 export async function POST(request: NextRequest) {
@@ -51,18 +51,24 @@ export async function POST(request: NextRequest) {
     const fullUrl = `${AI_ENDPOINT_BASE}${AI_ENDPOINT_PATH}`;
     console.log('Sending request to AI endpoint with FULL URL:', fullUrl);
     
-    // Create the request payload based on the new example format
+    // Create the request payload for chat completions
     const requestPayload = {
-      logprobs: null,
-      max_tokens: 500,
-      model: null,
-      prompt: prompt,
-      seed: null,
-      stop: null,
-      stream: false,
-      stream_options: null,
+      model: null, // Important: Set to null, not a specific model name
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that provides music recommendations based on board game themes. You MUST respond with a single valid JSON object FOLLOWED BY a brief explanation of 2-3 sentences. The explanation must not be part of the JSON. First the JSON, then the explanation."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
       temperature: 0.7,
-      top_p: 1
+      max_tokens: 500,
+      top_p: 1,
+      // Remove stop sequences that might be causing premature termination
+      stream: false
     };
     
     console.log('Request payload:', requestPayload);
@@ -83,13 +89,13 @@ export async function POST(request: NextRequest) {
     console.log('AI response received:', response.data);
     
     // Check if we have a valid response with choices
-    if (!response.data || !response.data.choices || !response.data.choices[0]) {
+    if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
       console.error('Invalid response format from AI endpoint:', response.data);
       throw new Error('Invalid response format from AI endpoint');
     }
     
-    // Parse the AI response - completions endpoint returns text directly in choices[0].text
-    const aiResponse = parseAIResponse(response.data.choices[0].text);
+    // Parse the AI response - chat completions endpoint returns text in choices[0].message.content
+    const aiResponse = parseAIResponse(response.data.choices[0].message.content, boardGame);
     
     return NextResponse.json(aiResponse);
   } catch (error: any) {
@@ -184,7 +190,7 @@ JSON FORMAT:
 /**
  * Parse the AI response into a structured format
  */
-function parseAIResponse(responseText: string): any {
+function parseAIResponse(responseText: string, boardGame?: BoardGame): any {
   try {
     console.log('Parsing AI response text:', responseText);
     
@@ -199,8 +205,15 @@ function parseAIResponse(responseText: string): any {
         console.log('Successfully extracted JSON data:', jsonData);
         
         // Extract explanation if it exists after the JSON
-        const explanation = extractExplanation(responseText, jsonMatch[0]);
+        let explanation = extractExplanation(responseText, jsonMatch[0]);
         console.log('Extracted explanation:', explanation);
+        
+        // If no explanation was found, generate a default one based on the board game
+        if (!explanation && boardGame) {
+          explanation = `These recommendations are chosen to match the ${boardGame.categories.join(', ')} themes in ${boardGame.name}, creating an atmosphere that enhances the gameplay experience. The audio features are balanced to provide an immersive soundtrack without distracting from the game.`;
+        } else if (!explanation) {
+          explanation = "These genres and audio features were selected to create an immersive atmosphere that complements the board game's theme and mechanics.";
+        }
         
         return {
           genres: jsonData.genres || [],
@@ -308,8 +321,8 @@ function extractExplanation(text: string, jsonString: string): string {
         .trim();
       
       // If the explanation is too long, truncate it
-      if (explanationText.length > 500) {
-        explanationText = explanationText.substring(0, 497) + '...';
+      if (explanationText.length > 1000) {
+        explanationText = explanationText.substring(0, 997) + '...';
       }
       
       return explanationText;
@@ -328,8 +341,8 @@ function extractExplanation(text: string, jsonString: string): string {
       let explanation = explanationMatch[1].trim();
       
       // If the explanation is too long, truncate it
-      if (explanation.length > 500) {
-        explanation = explanation.substring(0, 497) + '...';
+      if (explanation.length > 1000) {
+        explanation = explanation.substring(0, 997) + '...';
       }
       
       return explanation;
