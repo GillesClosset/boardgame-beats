@@ -5,44 +5,37 @@ const AI_ENDPOINT_URL = process.env.OVHCLOUD_AI_ENDPOINT_URL || '';
 const API_KEY = process.env.OVHCLOUD_API_KEY || '';
 
 /**
- * Generate music recommendations based on board game and atmosphere settings
+ * Generate music recommendations based on board game
  */
 export const generateMusicRecommendations = async (
   boardGame: BoardGame,
-  atmosphereSettings: AtmosphereSettings,
-  additionalContext?: string
-): Promise<AIResponse> => {
+  atmosphereSettings: AtmosphereSettings
+) => {
   try {
-    // Prepare the prompt for the AI
-    const prompt = createAIPrompt(boardGame, atmosphereSettings, additionalContext);
+    // Call our internal API route instead of the AI service directly
+    const response = await axios.post('/api/ai', {
+      boardGame,
+      atmosphereSettings
+    });
     
-    // Call the AI endpoint
-    const response = await axios.post(
-      AI_ENDPOINT_URL,
-      {
-        prompt,
-        max_tokens: 500,
-        temperature: 0.7,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`,
-        },
-      }
-    );
-    
-    // Parse the AI response
-    return parseAIResponse(response.data.choices[0].text);
+    // Return the response data directly
+    return response.data;
   } catch (error) {
     console.error('Error generating music recommendations:', error);
     
     // Return fallback response in case of error
     return {
-      suggestedTracks: [],
-      suggestedGenres: getDefaultGenres(boardGame, atmosphereSettings),
-      suggestedArtists: [],
-      explanation: 'Unable to generate AI recommendations. Using default suggestions based on game type.',
+      genres: ['instrumental', 'soundtrack', 'ambient', 'electronic', 'classical'],
+      audioFeatures: {
+        acousticness: 0.5,
+        danceability: 0.5,
+        energy: 0.5,
+        instrumentalness: 0.5,
+        liveness: 0.3,
+        speechiness: 0.1,
+        tempo: 120,
+        valence: 0.5
+      }
     };
   }
 };
@@ -63,31 +56,32 @@ BOARD GAME:
 - Description: ${boardGame.description.substring(0, 300)}...
 - Categories: ${boardGame.categories.join(', ')}
 - Mechanics: ${boardGame.mechanics.join(', ')}
-- Player Count: ${boardGame.minPlayers}-${boardGame.maxPlayers}
-- Playing Time: ${boardGame.playingTime} minutes
-
-DESIRED ATMOSPHERE:
-- Tempo: ${atmosphereSettings.tempo}/100 (higher = faster)
-- Energy: ${atmosphereSettings.energy}/100 (higher = more energetic)
-- Complexity: ${atmosphereSettings.complexity}/100 (higher = more complex)
-- Mood: ${atmosphereSettings.mood}
-- Preferred Genres: ${atmosphereSettings.genres.join(', ') || 'Any'}
-- Era: ${atmosphereSettings.era}
-
-${additionalContext ? `ADDITIONAL CONTEXT: ${additionalContext}` : ''}
 
 Please provide:
-1. 5-10 specific track suggestions (artist - track name)
-2. 3-5 music genres that would fit this game's atmosphere
-3. 3-5 artists whose music would complement this game
-4. A brief explanation of why these recommendations fit the game's atmosphere
+1. The best 5 Spotify music genres that would match this board game's theme and gameplay
+2. Recommended Spotify audio feature values (0.0 to 1.0 scale for most, except tempo):
+   - acousticness: how acoustic the music should be
+   - danceability: how suitable for dancing
+   - energy: perceptual measure of intensity and activity
+   - instrumentalness: predicts whether a track contains no vocals
+   - liveness: detects presence of audience in the recording
+   - speechiness: presence of spoken words
+   - tempo: estimated tempo in BPM (typically 50-150)
+   - valence: musical positiveness conveyed by the track
 
 Format your response as JSON with the following structure:
 {
-  "tracks": ["artist1 - track1", "artist2 - track2", ...],
-  "genres": ["genre1", "genre2", ...],
-  "artists": ["artist1", "artist2", ...],
-  "explanation": "Your explanation here"
+  "genres": ["genre1", "genre2", "genre3", "genre4", "genre5"],
+  "audioFeatures": {
+    "acousticness": 0.5,
+    "danceability": 0.5,
+    "energy": 0.5,
+    "instrumentalness": 0.5,
+    "liveness": 0.5,
+    "speechiness": 0.5,
+    "tempo": 120,
+    "valence": 0.5
+  }
 }
 `;
 }
@@ -104,28 +98,49 @@ function parseAIResponse(responseText: string): AIResponse {
       const jsonData = JSON.parse(jsonMatch[0]);
       
       return {
-        suggestedTracks: jsonData.tracks || [],
-        suggestedGenres: jsonData.genres || [],
-        suggestedArtists: jsonData.artists || [],
-        explanation: jsonData.explanation || 'No explanation provided.',
+        genres: jsonData.genres || [],
+        audioFeatures: jsonData.audioFeatures || {
+          acousticness: 0.5,
+          danceability: 0.5,
+          energy: 0.5,
+          instrumentalness: 0.5,
+          liveness: 0.3,
+          speechiness: 0.1,
+          tempo: 120,
+          valence: 0.5
+        }
       };
     }
     
     // Fallback if JSON parsing fails
     return {
-      suggestedTracks: [],
-      suggestedGenres: extractGenres(responseText),
-      suggestedArtists: [],
-      explanation: 'Unable to parse AI response in expected format.',
+      genres: extractGenres(responseText),
+      audioFeatures: {
+        acousticness: 0.5,
+        danceability: 0.5,
+        energy: 0.5,
+        instrumentalness: 0.5,
+        liveness: 0.3,
+        speechiness: 0.1,
+        tempo: 120,
+        valence: 0.5
+      }
     };
   } catch (error) {
     console.error('Error parsing AI response:', error);
     
     return {
-      suggestedTracks: [],
-      suggestedGenres: [],
-      suggestedArtists: [],
-      explanation: 'Error parsing AI response.',
+      genres: [],
+      audioFeatures: {
+        acousticness: 0.5,
+        danceability: 0.5,
+        energy: 0.5,
+        instrumentalness: 0.5,
+        liveness: 0.3,
+        speechiness: 0.1,
+        tempo: 120,
+        valence: 0.5
+      }
     };
   }
 }
@@ -140,10 +155,11 @@ function extractGenres(text: string): string[] {
     return genreMatches[1]
       .split(/,|\n/)
       .map(genre => genre.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .slice(0, 5); // Limit to 5 genres
   }
   
-  return [];
+  return ['instrumental', 'soundtrack', 'ambient', 'electronic', 'classical'];
 }
 
 /**

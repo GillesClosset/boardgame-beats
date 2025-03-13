@@ -1,178 +1,158 @@
 'use client';
 
+import React from 'react';
 import {
   Box,
-  Button,
   Container,
-  Flex,
   Heading,
   Text,
-  Stack,
-  Image,
-  useColorModeValue,
+  Button,
   VStack,
-  HStack,
+  Image,
+  Flex,
+  useColorModeValue,
+  SimpleGrid,
   Icon,
 } from '@chakra-ui/react';
-import { FaSpotify, FaSearch, FaMusic, FaGamepad } from 'react-icons/fa';
-import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import MainLayout from './components/layout/MainLayout';
+import { FaMusic, FaDice, FaSpotify } from 'react-icons/fa';
 
 export default function Home() {
-  const { data: session } = useSession();
   const router = useRouter();
-  const bgGradient = useColorModeValue(
-    'linear(to-b, brand.50, gray.50)',
-    'linear(to-b, gray.900, boardgame.900)'
-  );
+  
+  const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
-
-  const handleSpotifySignIn = async () => {
-    // Use explicit redirect: false to get the URL first
-    const result = await signIn('spotify', { 
-      callbackUrl: '/search',
-      redirect: false
-    });
-    
-    // If we have a URL, redirect manually to ensure proper handling
-    if (result?.url) {
-      window.location.href = result.url;
-    }
-  };
+  const textColor = useColorModeValue('gray.800', 'gray.100');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
 
   return (
-    <MainLayout>
-      <Box
-        as="section"
-        pt={{ base: 8, md: 12 }}
-        pb={{ base: 12, md: 24 }}
-        bgGradient={bgGradient}
-        borderRadius="lg"
-        mb={10}
+    <Box bg={bgColor} minH="100vh">
+      {/* Hero Section */}
+      <Box 
+        bg={useColorModeValue('blue.600', 'blue.900')} 
+        color="white" 
+        py={20} 
+        px={4}
       >
         <Container maxW="container.xl">
-          <Flex
-            direction={{ base: 'column', lg: 'row' }}
-            align="center"
+          <Flex 
+            direction={{ base: 'column', lg: 'row' }} 
+            align="center" 
             justify="space-between"
-            gap={8}
+            gap={10}
           >
-            <VStack
-              align={{ base: 'center', lg: 'flex-start' }}
-              spacing={6}
-              maxW={{ base: 'full', lg: '50%' }}
-              textAlign={{ base: 'center', lg: 'left' }}
-            >
-              <Heading
-                as="h1"
-                size="3xl"
-                fontWeight="bold"
-                lineHeight="shorter"
-                color="brand.600"
-              >
-                Perfect Soundtracks for Your Board Game Sessions
+            <VStack align="flex-start" spacing={6} maxW="600px">
+              <Heading as="h1" size="3xl" lineHeight="1.2">
+                BoardGame Beats
               </Heading>
-              <Text fontSize="xl" color={useColorModeValue('gray.600', 'gray.300')}>
-                BoardGame Beats uses AI to generate personalized Spotify playlists that match the atmosphere of your favorite board games.
+              <Text fontSize="xl">
+                Create the perfect Spotify playlist for your board game night. 
+                Match the music to your game's theme, mood, and intensity.
               </Text>
-              <HStack spacing={4}>
-                <Button
-                  size="lg"
-                  colorScheme="brand"
-                  onClick={() => {
-                    if (session) {
-                      router.push('/search');
-                    } else {
-                      handleSpotifySignIn();
-                    }
-                  }}
-                  leftIcon={session ? <FaSearch /> : <FaSpotify />}
-                >
-                  {session ? 'Find a Board Game' : 'Sign in with Spotify'}
-                </Button>
-                {session && (
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    colorScheme="boardgame"
-                    onClick={() => router.push('/playlists')}
-                    leftIcon={<FaMusic />}
-                  >
-                    My Playlists
-                  </Button>
-                )}
-              </HStack>
+              <Button 
+                size="lg" 
+                colorScheme="green" 
+                rightIcon={<FaSpotify />}
+                onClick={() => router.push('/search')}
+                px={8}
+                py={6}
+                fontSize="lg"
+              >
+                Get Started
+              </Button>
             </VStack>
-            <Box
-              maxW={{ base: '80%', lg: '45%' }}
-              rounded="lg"
-              shadow="xl"
-              overflow="hidden"
+            
+            <Box 
+              boxSize={{ base: '300px', md: '400px' }}
+              position="relative"
             >
-              <Image
-                src="/images/hero-image.jpg"
-                alt="Board games with music"
-                fallbackSrc="https://via.placeholder.com/600x400?text=BoardGame+Beats"
-                objectFit="cover"
-                w="full"
+              <Image 
+                src="/images/hero-image.png" 
+                alt="Board games and music" 
+                fallbackSrc="https://via.placeholder.com/400x400?text=BoardGame+Beats"
+                borderRadius="lg"
+                shadow="2xl"
               />
             </Box>
           </Flex>
         </Container>
       </Box>
 
-      <Box as="section" py={12}>
+      {/* How It Works Section */}
+      <Box py={20} px={4}>
         <Container maxW="container.xl">
           <VStack spacing={12}>
-            <Heading as="h2" size="xl" textAlign="center">
+            <Heading as="h2" size="xl" textAlign="center" mb={4}>
               How It Works
             </Heading>
-            <Stack
-              direction={{ base: 'column', md: 'row' }}
-              spacing={8}
-              justify="center"
-              w="full"
+            
+            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={10}>
+              <Box 
+                p={6} 
+                bg={cardBg} 
+                borderRadius="lg" 
+                borderWidth="1px" 
+                borderColor={borderColor}
+                shadow="md"
+                textAlign="center"
+              >
+                <Icon as={FaDice} boxSize={12} color="blue.500" mb={4} />
+                <Heading as="h3" size="md" mb={4}>
+                  1. Choose Your Game
+                </Heading>
+                <Text color={useColorModeValue('gray.600', 'gray.400')}>
+                  Search for your favorite board game from our extensive database.
+                </Text>
+              </Box>
+              
+              <Box 
+                p={6} 
+                bg={cardBg} 
+                borderRadius="lg" 
+                borderWidth="1px" 
+                borderColor={borderColor}
+                shadow="md"
+                textAlign="center"
+              >
+                <Icon as={FaMusic} boxSize={12} color="purple.500" mb={4} />
+                <Heading as="h3" size="md" mb={4}>
+                  2. Customize Atmosphere
+                </Heading>
+                <Text color={useColorModeValue('gray.600', 'gray.400')}>
+                  Adjust musical parameters or use our AI to suggest the perfect atmosphere.
+                </Text>
+              </Box>
+              
+              <Box 
+                p={6} 
+                bg={cardBg} 
+                borderRadius="lg" 
+                borderWidth="1px" 
+                borderColor={borderColor}
+                shadow="md"
+                textAlign="center"
+              >
+                <Icon as={FaSpotify} boxSize={12} color="green.500" mb={4} />
+                <Heading as="h3" size="md" mb={4}>
+                  3. Generate Playlist
+                </Heading>
+                <Text color={useColorModeValue('gray.600', 'gray.400')}>
+                  Save your custom soundtrack to Spotify and enhance your gaming experience.
+                </Text>
+              </Box>
+            </SimpleGrid>
+            
+            <Button 
+              size="lg" 
+              colorScheme="blue" 
+              onClick={() => router.push('/search')}
+              mt={8}
             >
-              {[
-                {
-                  title: 'Find Your Game',
-                  description: 'Search for your favorite board game from thousands of options.',
-                  icon: FaSearch,
-                },
-                {
-                  title: 'Set the Atmosphere',
-                  description: 'Adjust tempo, energy, mood, and more to match your desired gaming experience.',
-                  icon: FaGamepad,
-                },
-                {
-                  title: 'Generate Playlist',
-                  description: 'Our AI creates a custom Spotify playlist that perfectly complements your game.',
-                  icon: FaMusic,
-                },
-              ].map((feature, index) => (
-                <Box
-                  key={index}
-                  bg={cardBg}
-                  p={6}
-                  rounded="lg"
-                  shadow="md"
-                  flex="1"
-                  textAlign="center"
-                >
-                  <Icon as={feature.icon} w={10} h={10} color="brand.500" mb={4} />
-                  <Heading as="h3" size="md" mb={2}>
-                    {feature.title}
-                  </Heading>
-                  <Text color={useColorModeValue('gray.600', 'gray.400')}>
-                    {feature.description}
-                  </Text>
-                </Box>
-              ))}
-            </Stack>
+              Find Your Game
+            </Button>
           </VStack>
         </Container>
       </Box>
-    </MainLayout>
+    </Box>
   );
 }

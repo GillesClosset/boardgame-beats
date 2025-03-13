@@ -15,7 +15,8 @@ import {
   MenuItem,
   MenuDivider,
   useColorModeValue,
-  Text
+  Text,
+  Badge
 } from '@chakra-ui/react';
 import { MoonIcon, SunIcon } from '@chakra-ui/icons';
 import { signIn, signOut, useSession } from 'next-auth/react';
@@ -54,6 +55,20 @@ export default function Navbar() {
             <Link href="/playlists" passHref>
               <Text fontWeight="medium" cursor="pointer">My Playlists</Text>
             </Link>
+            <Link href="/ai-test" passHref>
+              <Text fontWeight="medium" cursor="pointer" position="relative">
+                AI Test
+                <Badge 
+                  colorScheme="purple" 
+                  position="absolute" 
+                  top="-8px" 
+                  right="-8px" 
+                  fontSize="0.6em"
+                >
+                  New
+                </Badge>
+              </Text>
+            </Link>
           </HStack>
         </HStack>
         
@@ -89,6 +104,9 @@ export default function Navbar() {
                 </MenuItem>
                 <MenuItem as={Link} href="/playlists">
                   My Playlists
+                </MenuItem>
+                <MenuItem as={Link} href="/ai-test">
+                  AI Test
                 </MenuItem>
                 <MenuDivider />
                 <MenuItem onClick={() => signOut()}>

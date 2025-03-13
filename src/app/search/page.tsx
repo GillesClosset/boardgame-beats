@@ -1,109 +1,108 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   Container,
   Heading,
-  Input,
-  Button,
-  VStack,
   Text,
-  useToast,
+  VStack,
+  Divider,
+  Button,
+  useColorModeValue,
   Flex,
-  Spinner,
 } from '@chakra-ui/react';
-import { useSession } from 'next-auth/react';
+import SearchBar from '@/app/components/search/SearchBar';
+import SearchResults from '@/app/components/search/SearchResults';
+import GameDetails from '@/app/components/search/GameDetails';
+import { SearchResult, BoardGame } from '@/app/types';
+import { useAtmosphere } from '@/app/context/atmosphere-context';
 import { useRouter } from 'next/navigation';
-import MainLayout from '../components/layout/MainLayout';
 
 export default function SearchPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const toast = useToast();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const { setSelectedGame, setSearchResult } = useAtmosphere();
+  const router = useRouter();
+  
+  const bgColor = useColorModeValue('gray.50', 'gray.900');
+  const textColor = useColorModeValue('gray.800', 'gray.100');
 
-  // Redirect to home if not authenticated
-  if (status === 'unauthenticated') {
-    router.push('/');
-    return null;
-  }
+  const handleSearch = useCallback((results: SearchResult[]) => {
+    setSearchResults(results);
+    setIsLoading(false);
+    setSelectedGameId(null);
+  }, []);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      toast({
-        title: 'Search query is empty',
-        description: 'Please enter a board game name to search',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
+  const handleSelectGame = useCallback((game: SearchResult) => {
+    setSelectedGameId(game.id);
+    setSearchResult(game);
+  }, [setSearchResult]);
 
-    setIsLoading(true);
-    // This will be implemented later to fetch board games
-    // For now, just show a loading state and then a message
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: 'Search functionality coming soon',
-        description: 'The search feature is under development',
-        status: 'info',
-        duration: 5000,
-        isClosable: true,
-      });
-    }, 1500);
-  };
+  const handleGameLoaded = useCallback((game: BoardGame) => {
+    setSelectedGame(game);
+  }, [setSelectedGame]);
+
+  const handleContinue = useCallback(() => {
+    router.push('/atmosphere');
+  }, [router]);
 
   return (
-    <MainLayout>
-      <Container maxW="container.xl" py={8}>
+    <Box bg={bgColor} minH="100vh" py={8}>
+      <Container maxW="container.xl">
         <VStack spacing={8} align="stretch">
-          <Heading as="h1" size="xl">
-            Find Your Board Game
-          </Heading>
-          <Text fontSize="lg">
-            Search for a board game to generate a custom Spotify playlist that matches its atmosphere.
-          </Text>
-
-          <Flex gap={4}>
-            <Input
-              placeholder="Enter board game name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              size="lg"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') handleSearch();
-              }}
-            />
-            <Button
-              colorScheme="brand"
-              size="lg"
-              onClick={handleSearch}
-              isLoading={isLoading}
-              loadingText="Searching"
-            >
-              Search
-            </Button>
-          </Flex>
-
-          {isLoading && (
-            <Box textAlign="center" py={10}>
-              <Spinner size="xl" color="brand.500" />
-              <Text mt={4}>Searching for board games...</Text>
-            </Box>
-          )}
-
-          {/* Search results will be displayed here */}
-          <Box py={6}>
-            <Text textAlign="center" fontSize="lg" fontStyle="italic">
-              {!isLoading && 'Search results will appear here'}
+          <Box textAlign="center" mb={8}>
+            <Heading as="h1" size="2xl" mb={4} color={textColor}>
+              Find Your Board Game
+            </Heading>
+            <Text fontSize="lg" color={useColorModeValue('gray.600', 'gray.400')}>
+              Search for a board game to create a matching playlist
             </Text>
           </Box>
+
+          <SearchBar 
+            onSelectGame={handleSelectGame}
+          />
+
+          {searchResults.length > 0 && !selectedGameId && (
+            <>
+              <Divider my={6} />
+              <Heading as="h2" size="lg" mb={4}>
+                Search Results
+              </Heading>
+              <SearchResults 
+                results={searchResults}
+                isLoading={isLoading}
+                onSelectGame={handleSelectGame}
+              />
+            </>
+          )}
+
+          {selectedGameId && (
+            <>
+              <Divider my={6} />
+              <Heading as="h2" size="lg" mb={4}>
+                Game Details
+              </Heading>
+              <GameDetails 
+                gameId={selectedGameId}
+                onGameLoaded={handleGameLoaded}
+              />
+              <Flex justify="center" mt={8}>
+                <Button 
+                  colorScheme="blue" 
+                  size="lg" 
+                  onClick={handleContinue}
+                  px={8}
+                >
+                  Continue to Atmosphere Settings
+                </Button>
+              </Flex>
+            </>
+          )}
         </VStack>
       </Container>
-    </MainLayout>
+    </Box>
   );
 } 

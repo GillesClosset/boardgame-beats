@@ -52,6 +52,15 @@ export interface BoardGame {
   designer: string;
   publisher: string;
   rating: number;
+  weight?: number; // complexity rating
+}
+
+// Search result type
+export interface SearchResult {
+  id: string;
+  name: string;
+  yearPublished: number;
+  image: string;
 }
 
 // Atmosphere related types
@@ -68,14 +77,20 @@ export interface AtmosphereSettings {
 export interface AIPrompt {
   boardGame: BoardGame;
   atmosphere: AtmosphereSettings;
-  additionalContext?: string;
 }
 
 export interface AIResponse {
-  suggestedTracks: string[]; // Track IDs
-  suggestedGenres: string[];
-  suggestedArtists: string[];
-  explanation: string;
+  genres: string[];
+  audioFeatures: {
+    acousticness: number;
+    danceability: number;
+    energy: number;
+    instrumentalness: number;
+    liveness: number;
+    speechiness: number;
+    tempo: number;
+    valence: number;
+  };
 }
 
 // Session and auth types
