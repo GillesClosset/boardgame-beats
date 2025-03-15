@@ -3,24 +3,19 @@
 import React, { useState } from 'react';
 import {
   Button,
-  Tooltip,
-  useToast,
-  Flex,
-  Text,
-  Spinner,
-  Badge,
-  useColorModeValue,
-  Alert,
-  AlertIcon,
   Box,
+  Text,
+  useColorModeValue,
+  useToast,
+  Spinner,
 } from '@chakra-ui/react';
-import { FaMagic } from 'react-icons/fa';
+import { FaBrain } from 'react-icons/fa';
 import { generateMusicRecommendations } from '@/app/lib/ai';
 import { BoardGame } from '@/app/types';
 
 interface AiSuggestionButtonProps {
   game: BoardGame | null;
-  onSuggestionsGenerated: (genres: string[], explanation?: string) => void;
+  onSuggestionsGenerated: (genres: string[], keywords: string[], explanation?: string) => void;
   isDisabled?: boolean;
 }
 
@@ -70,24 +65,30 @@ const AiSuggestionButton: React.FC<AiSuggestionButtonProps> = ({
         setError('AI service returned an empty response. Using default suggestions.');
       }
 
+      // Log both genres and keywords to console for debugging
+      console.log('AI suggested genres:', aiResponse.genres || []);
+      console.log('AI suggested keywords:', aiResponse.keywords || []);
+      
       // Pass the suggestions to the parent component
       onSuggestionsGenerated(
         aiResponse.genres || [],
+        aiResponse.keywords || [],
         aiResponse.explanation || "Generated based on the board game's theme and mechanics."
       );
 
       if (!error) {
         toast({
           title: 'AI Suggestions Generated',
-          description: 'Music genre recommendations have been generated based on the game theme and mechanics.',
+          description: 'Music genre and keyword recommendations have been generated for your game.',
           status: 'success',
           duration: 5000,
           isClosable: true,
         });
       }
-    } catch (error: any) {
-      console.error('Error generating AI suggestions:', error);
-      setError('Failed to generate AI suggestions. Using default recommendations instead.');
+    } catch (err) {
+      console.error('Error generating AI suggestions:', err);
+      setError('Failed to generate AI suggestions.');
+      
       toast({
         title: 'Error',
         description: 'Failed to generate AI suggestions. Please try again.',
@@ -101,48 +102,45 @@ const AiSuggestionButton: React.FC<AiSuggestionButtonProps> = ({
   };
 
   return (
-    <Flex direction="column" align="center" my={4}>
-      {error && (
-        <Alert status="warning" borderRadius="md" mb={4}>
-          <AlertIcon />
-          {error}
-        </Alert>
+    <Box 
+      p={6} 
+      borderRadius="lg" 
+      borderWidth="1px" 
+      borderColor={useColorModeValue('gray.200', 'gray.700')}
+      bg={useColorModeValue('white', 'gray.800')}
+      shadow="md"
+    >
+      <Button
+        onClick={handleGenerateSuggestions}
+        isLoading={isLoading}
+        loadingText="Generating suggestions..."
+        isDisabled={isDisabled || isLoading || !game}
+        colorScheme="purple"
+        size="lg"
+        width="full"
+        leftIcon={<FaBrain />}
+        _hover={{
+          bg: buttonHoverBg
+        }}
+      >
+        Get AI Suggestions
+      </Button>
+      
+      {isLoading && (
+        <Box textAlign="center" mt={4}>
+          <Spinner size="sm" mr={2} />
+          <Text display="inline">
+            Analyzing {game?.name}'s themes and mechanics...
+          </Text>
+        </Box>
       )}
       
-      <Tooltip
-        label={
-          !game
-            ? 'Select a board game first'
-            : 'Generate AI-powered music recommendations based on this game'
-        }
-        placement="top"
-        hasArrow
-      >
-        <Button
-          leftIcon={isLoading ? <Spinner size="sm" /> : <FaMagic />}
-          onClick={handleGenerateSuggestions}
-          isLoading={isLoading}
-          isDisabled={isDisabled || !game || isLoading}
-          size="lg"
-          bg={buttonBg}
-          color="white"
-          _hover={{ bg: buttonHoverBg }}
-          _active={{ bg: buttonHoverBg }}
-          px={8}
-          py={6}
-          borderRadius="full"
-        >
-          Get AI Suggestions
-        </Button>
-      </Tooltip>
-      
-      <Flex align="center" mt={2}>
-        <Badge colorScheme="purple" mr={2}>AI</Badge>
-        <Text fontSize="sm" color="gray.500">
-          Analyzes game theme, mechanics, and playing time
+      {error && (
+        <Text color="red.500" mt={2}>
+          {error}
         </Text>
-      </Flex>
-    </Flex>
+      )}
+    </Box>
   );
 };
 

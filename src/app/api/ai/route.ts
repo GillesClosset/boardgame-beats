@@ -142,7 +142,8 @@ BOARD GAME:
 - Mechanics: ${boardGame.mechanics.join(', ')}
 
 Please provide:
-1. The best 5 Spotify music genres/keywords that would match this board game's theme and gameplay
+1. The best 5 Spotify music genres that would match this board game's theme and gameplay
+2. 5 keywords or phrases (can be multi-word like "Epic Orchestral" or "Viking Metal") for searching music that matches this game
 
 CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:
 1. FIRST provide a single valid JSON object with the structure shown below
@@ -153,7 +154,8 @@ CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:
 
 JSON FORMAT:
 {
-  "genres": ["genre1/keyword1", "genre2/keyword2", "genre3/keyword3", "genre4/keyword4", "genre5/keyword5"]
+  "genres": ["genre1", "genre2", "genre3", "genre4", "genre5"],
+  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"]
 }
 `;
 }
@@ -167,7 +169,7 @@ function parseAIResponse(responseText: string, boardGame?: BoardGame): any {
     
     // First, try to extract the first JSON object in the response
     // This regex looks for the first complete JSON object with proper structure
-    const jsonRegex = /\{[\s\S]*?"genres"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/;
+    const jsonRegex = /\{[\s\S]*?("genres"\s*:\s*\[[\s\S]*?\]|"keywords"\s*:\s*\[[\s\S]*?\])[\s\S]*?\}/;
     const jsonMatch = responseText.match(jsonRegex);
     
     if (jsonMatch) {
@@ -181,13 +183,14 @@ function parseAIResponse(responseText: string, boardGame?: BoardGame): any {
         
         // If no explanation was found, generate a default one based on the board game
         if (!explanation && boardGame) {
-          explanation = `These genre recommendations are chosen to match the ${boardGame.categories.join(', ')} themes in ${boardGame.name}, creating an atmosphere that enhances the gameplay experience.`;
+          explanation = `These genre and keyword recommendations are chosen to match the ${boardGame.categories.join(', ')} themes in ${boardGame.name}, creating an atmosphere that enhances the gameplay experience.`;
         } else if (!explanation) {
-          explanation = "These genres were selected to create an immersive atmosphere that complements the board game's theme and mechanics.";
+          explanation = "These genres and keywords were selected to create an immersive atmosphere that complements the board game's theme and mechanics.";
         }
         
         return {
           genres: jsonData.genres || [],
+          keywords: jsonData.keywords || [],
           explanation: explanation
         };
       } catch (jsonError) {
@@ -203,6 +206,7 @@ function parseAIResponse(responseText: string, boardGame?: BoardGame): any {
     
     return {
       genres: genres,
+      keywords: [],
       explanation: explanation
     };
   } catch (error) {
@@ -210,6 +214,7 @@ function parseAIResponse(responseText: string, boardGame?: BoardGame): any {
     
     return {
       genres: ['instrumental', 'soundtrack', 'ambient', 'electronic', 'classical'],
+      keywords: ['board game music', 'tabletop soundtrack', 'game night ambiance', 'strategic background', 'immersive soundtrack'],
       explanation: "Fallback response due to parsing error. These genres provide a balanced soundtrack suitable for most board games."
     };
   }

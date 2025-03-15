@@ -14,13 +14,18 @@ interface AtmosphereContextType {
   selectedGenres: string[];
   updateSelectedGenres: (genres: string[]) => void;
   
+  // Keywords
+  aiKeywords: string[];
+  selectedKeywords: string[];
+  updateSelectedKeywords: (keywords: string[]) => void;
+  
   // Track count
   trackCount: number;
   updateTrackCount: (count: number) => void;
   
   // AI suggestions tracking
   aiSuggestedGenres: string[];
-  setAiSuggestions: (genres: string[], explanation?: string) => void;
+  setAiSuggestions: (genres: string[], keywords?: string[], explanation?: string) => void;
   
   // AI explanation
   aiExplanation: string | null;
@@ -30,6 +35,10 @@ interface AtmosphereContextType {
   updateSpotifyTracks: (tracks: SpotifyTrack[]) => void;
   addSpotifyTracks: (tracks: SpotifyTrack[]) => void;
   clearSpotifyTracks: () => void;
+  
+  // Active search type (genres or keywords)
+  activeSearchType: 'genres' | 'keywords';
+  setActiveSearchType: (type: 'genres' | 'keywords') => void;
   
   // Mood
   mood: string;
@@ -49,6 +58,10 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
   // Genres
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   
+  // Keywords
+  const [aiKeywords, setAiKeywords] = useState<string[]>([]);
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  
   // Track count
   const [trackCount, setTrackCount] = useState<number>(10);
   
@@ -61,6 +74,9 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
   // Spotify search results
   const [spotifyTracks, setSpotifyTracks] = useState<SpotifyTrack[]>([]);
   
+  // Active search type
+  const [activeSearchType, setActiveSearchType] = useState<'genres' | 'keywords'>('genres');
+  
   // Mood
   const [mood, setMood] = useState<string>('neutral');
 
@@ -69,15 +85,23 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
     setSelectedGenres(genres);
   }, []);
 
+  // Update selected keywords
+  const updateSelectedKeywords = useCallback((keywords: string[]) => {
+    setSelectedKeywords(keywords);
+  }, []);
+
   // Update track count
   const updateTrackCount = useCallback((count: number) => {
     setTrackCount(count);
   }, []);
 
   // Set AI suggestions
-  const setAiSuggestions = useCallback((genres: string[], explanation?: string) => {
+  const setAiSuggestions = useCallback((genres: string[], keywords: string[] = [], explanation?: string) => {
     // Update AI suggested genres
     setAiSuggestedGenres(genres);
+    
+    // Update AI keywords
+    setAiKeywords(keywords);
     
     // Update AI explanation if provided
     if (explanation) {
@@ -88,7 +112,12 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
     if (selectedGenres.length === 0) {
       setSelectedGenres(genres.slice(0, 5)); // Limit to 5 genres
     }
-  }, [selectedGenres]);
+    
+    // If no keywords are selected yet, use the AI suggestions
+    if (selectedKeywords.length === 0 && keywords.length > 0) {
+      setSelectedKeywords(keywords.slice(0, 5)); // Limit to 5 keywords
+    }
+  }, [selectedGenres, selectedKeywords]);
 
   // Update mood
   const updateMood = useCallback((newMood: string) => {
@@ -122,11 +151,14 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
   // Reset everything
   const resetAtmosphere = useCallback(() => {
     setSelectedGenres([]);
+    setSelectedKeywords([]);
     setTrackCount(10);
     setAiSuggestedGenres([]);
+    setAiKeywords([]);
     setAiExplanation(null);
     setSpotifyTracks([]);
     setMood('neutral');
+    setActiveSearchType('genres');
   }, []);
 
   return (
@@ -138,6 +170,9 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
         setSearchResult,
         selectedGenres,
         updateSelectedGenres,
+        aiKeywords,
+        selectedKeywords,
+        updateSelectedKeywords,
         trackCount,
         updateTrackCount,
         aiSuggestedGenres,
@@ -147,6 +182,8 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
         updateSpotifyTracks,
         addSpotifyTracks,
         clearSpotifyTracks,
+        activeSearchType,
+        setActiveSearchType,
         mood,
         updateMood,
         resetAtmosphere,

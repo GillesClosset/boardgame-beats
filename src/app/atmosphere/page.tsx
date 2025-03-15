@@ -25,11 +25,13 @@ import {
   Spinner,
   useToast,
   Icon,
+  Badge,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useAtmosphere } from '@/app/context/atmosphere-context';
 import GenreSelector from '@/app/components/atmosphere/GenreSelector';
+import KeywordSelector from '@/app/components/atmosphere/KeywordSelector';
 import TrackCount from '@/app/components/atmosphere/TrackCount';
 import AiSuggestionButton from '@/app/components/atmosphere/AiSuggestionButton';
 import { SpotifyTrack } from '../types';
@@ -42,6 +44,9 @@ export default function AtmospherePage() {
     selectedGame,
     selectedGenres,
     updateSelectedGenres,
+    aiKeywords,
+    selectedKeywords,
+    updateSelectedKeywords,
     trackCount,
     updateTrackCount,
     aiSuggestedGenres,
@@ -51,6 +56,8 @@ export default function AtmospherePage() {
     updateSpotifyTracks,
     addSpotifyTracks,
     clearSpotifyTracks,
+    activeSearchType,
+    setActiveSearchType,
   } = useAtmosphere();
 
   const [isSearching, setIsSearching] = useState(false);
@@ -71,13 +78,13 @@ export default function AtmospherePage() {
   }, [selectedGame, router]);
 
   // Memoize the handlers to prevent unnecessary re-renders
-  const handleAiSuggestions = useCallback((genres: string[], explanation?: string) => {
-    setAiSuggestions(genres, explanation);
+  const handleAiSuggestions = useCallback((genres: string[], keywords: string[], explanation?: string) => {
+    setAiSuggestions(genres, keywords, explanation);
     
     // Clear previous search results
     clearSpotifyTracks();
     
-    // Search for tracks based on the suggested genres
+    // Search for tracks based on the suggested genres by default
     if (genres.length > 0 && session?.user?.accessToken) {
       handleSearchByGenres(genres);
     }
@@ -96,6 +103,8 @@ export default function AtmospherePage() {
     }
 
     setIsSearching(true);
+    setActiveSearchType('genres');
+    clearSpotifyTracks();
 
     try {
       for (const genre of genres) {
@@ -107,6 +116,48 @@ export default function AtmospherePage() {
           addSpotifyTracks(data.tracks);
         } else {
           console.warn(`No results found for genre: ${genre}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error searching tracks:', error);
+      toast({
+        title: 'Search failed',
+        description: 'An error occurred while searching',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearchByKeywords = async (keywords: string[]) => {
+    if (!session?.user?.accessToken) {
+      toast({
+        title: 'Authentication required',
+        description: 'Please make sure you are signed in with Spotify',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    setActiveSearchType('keywords');
+    clearSpotifyTracks();
+
+    try {
+      for (const keyword of keywords) {
+        const response = await fetch(`/api/spotify?action=search&query=${encodeURIComponent(keyword)}&limit=5`);
+        const data = await response.json();
+        
+        if (response.ok && data.tracks && data.tracks.length > 0) {
+          // Add these tracks to our results
+          addSpotifyTracks(data.tracks);
+        } else {
+          console.warn(`No results found for keyword: ${keyword}`);
         }
       }
     } catch (error) {
@@ -317,6 +368,19 @@ export default function AtmospherePage() {
                   onChange={updateSelectedGenres}
                   aiSuggestedGenres={aiSuggestedGenres}
                 />
+                
+                <Button 
+                  mt={4} 
+                  colorScheme="blue" 
+                  onClick={() => handleSearchByGenres(selectedGenres)}
+                  isDisabled={selectedGenres.length === 0}
+                  width="full"
+                >
+                  Search by Genres
+                </Button>
+                <Text fontSize="xs" color="gray.500" textAlign="center" mt={1}>
+                  {activeSearchType === 'genres' && 'Default'}
+                </Text>
               </Box>
             </GridItem>
 
@@ -329,14 +393,42 @@ export default function AtmospherePage() {
                 borderColor={borderColor}
                 shadow="md"
               >
-                <TrackCount 
-                  playingTime={selectedGame.playingTime}
-                  value={trackCount}
-                  onChange={updateTrackCount}
+                <KeywordSelector 
+                  selectedKeywords={selectedKeywords}
+                  onChange={updateSelectedKeywords}
+                  aiSuggestedKeywords={aiKeywords}
                 />
+                
+                <Button 
+                  mt={4} 
+                  colorScheme="green" 
+                  onClick={() => handleSearchByKeywords(selectedKeywords)}
+                  isDisabled={selectedKeywords.length === 0}
+                  width="full"
+                >
+                  Search by Keywords
+                </Button>
+                <Text fontSize="xs" color="gray.500" textAlign="center" mt={1}>
+                  {activeSearchType === 'keywords' && 'Default'}
+                </Text>
               </Box>
             </GridItem>
           </Grid>
+
+          <Box 
+            p={6} 
+            bg={cardBg} 
+            borderRadius="lg" 
+            borderWidth="1px" 
+            borderColor={borderColor}
+            shadow="md"
+          >
+            <TrackCount 
+              playingTime={selectedGame.playingTime}
+              value={trackCount}
+              onChange={updateTrackCount}
+            />
+          </Box>
 
           {/* Search Results Section */}
           <Box 
@@ -349,6 +441,11 @@ export default function AtmospherePage() {
           >
             <Heading as="h3" size="md" mb={4} color={textColor}>
               Search Results
+              {activeSearchType && (
+                <Badge ml={2} colorScheme={activeSearchType === 'genres' ? 'blue' : 'green'}>
+                  {activeSearchType === 'genres' ? 'By Genres' : 'By Keywords'}
+                </Badge>
+              )}
             </Heading>
             
             {isSearching ? (
@@ -385,7 +482,7 @@ export default function AtmospherePage() {
               </SimpleGrid>
             ) : (
               <Text textAlign="center" color="gray.500" py={10}>
-                No search results available. Click "Get AI Suggestions" to generate recommendations.
+                No search results available. Click "Get AI Suggestions" or use the search buttons to find music.
               </Text>
             )}
           </Box>
@@ -400,7 +497,7 @@ export default function AtmospherePage() {
               px={8}
               isLoading={isCreatingPlaylist}
               loadingText="Creating Playlist"
-              isDisabled={selectedGenres.length === 0 || spotifyTracks.length === 0 || !session?.user?.accessToken}
+              isDisabled={spotifyTracks.length === 0 || !session?.user?.accessToken}
             >
               Generate Playlist
             </Button>
@@ -419,9 +516,9 @@ export default function AtmospherePage() {
               </Button>
             )}
 
-            {selectedGenres.length === 0 && (
+            {(selectedGenres.length === 0 && selectedKeywords.length === 0) && (
               <Text textAlign="center" color="red.500">
-                Please select at least one genre to continue
+                Please select at least one genre or keyword to continue
               </Text>
             )}
           </Flex>

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { AIPrompt, AIResponse, BoardGame, AtmosphereSettings } from '../types';
+import { AIResponse, BoardGame, AtmosphereSettings } from '../types';
 
 const AI_ENDPOINT_URL = process.env.OVHCLOUD_AI_ENDPOINT_URL || '';
 const API_KEY = process.env.OVHCLOUD_API_KEY || '';
@@ -10,7 +10,7 @@ const API_KEY = process.env.OVHCLOUD_API_KEY || '';
 export const generateMusicRecommendations = async (
   boardGame: BoardGame,
   atmosphereSettings: AtmosphereSettings
-) => {
+): Promise<AIResponse> => {
   try {
     // Call our internal API route instead of the AI service directly
     const response = await axios.post('/api/ai', {
@@ -26,6 +26,7 @@ export const generateMusicRecommendations = async (
     // Return fallback response in case of error
     return {
       genres: ['instrumental', 'soundtrack', 'ambient', 'electronic', 'classical'],
+      keywords: ['board game music', 'tabletop soundtrack', 'game night ambiance', 'strategic background', 'immersive soundtrack'],
       explanation: "Failed to generate recommendations. These genres provide a balanced soundtrack suitable for most board games."
     };
   }
@@ -110,47 +111,44 @@ function parseAIResponse(responseText: string): any {
 }
 
 /**
- * Extract genres from text if JSON parsing fails
+ * Extract explanation from AI response text
  */
-function extractGenres(text: string): string[] {
-  const genreMatches = text.match(/genres?:?\s*([^.]*)/i);
+export function extractExplanation(text: string, jsonString: string): string | null {
+  if (!text || !jsonString) return null;
   
-  if (genreMatches && genreMatches[1]) {
-    return genreMatches[1]
-      .split(/,|\n/)
-      .map(genre => genre.trim())
-      .filter(Boolean)
-      .slice(0, 5); // Limit to 5 genres
-  }
+  // Get the text that appears after the JSON part
+  const afterJsonText = text.substring(text.indexOf(jsonString) + jsonString.length);
   
-  return ['instrumental', 'soundtrack', 'ambient', 'electronic', 'classical'];
+  // Clean up the text by removing excess whitespace and formatting
+  const cleanedText = afterJsonText
+    .replace(/^\s*[\r\n]+/, '')  // Remove initial newlines
+    .trim();                     // Remove excess whitespace
+  
+  return cleanedText || null;
 }
 
 /**
- * Extract explanation from text after the JSON
+ * Extract genres from text when JSON parsing fails
  */
-function extractExplanation(text: string, jsonString: string): string | null {
-  try {
-    // If we have a jsonString, extract everything after it for the explanation
-    if (jsonString) {
-      const explanationText = text.substring(text.indexOf(jsonString) + jsonString.length).trim();
-      return explanationText || null;
-    }
+export function extractGenres(text: string): string[] {
+  if (!text) return [];
+  
+  // Look for lists of genres in the text
+  const genreMatches = text.match(/(?:genres?|music styles?|recommendations?|suggestions?):\s*([^.]*)/gi);
+  
+  if (genreMatches && genreMatches.length > 0) {
+    // Extract what looks like a list of items
+    const listItems = genreMatches[0].split(/[,;:]/).slice(1);
     
-    // Try to extract explanation looking for common patterns
-    const explanationMatches = text.match(/explanation:?\s*([^.]*(?:\.[^.]*){1,3})/i) ||
-                              text.match(/chosen\s*([^.]*(?:\.[^.]*){1,3})/i) ||
-                              text.match(/selected\s*([^.]*(?:\.[^.]*){1,3})/i);
-    
-    if (explanationMatches && explanationMatches[1]) {
-      return explanationMatches[1].trim();
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Error extracting explanation:', error);
-    return null;
+    // Clean up each item
+    return listItems
+      .map(item => item.trim())
+      .filter(item => item.length > 2) // Filter out very short items
+      .slice(0, 5); // Take at most 5 items
   }
+  
+  // Fallback genres
+  return ['instrumental', 'soundtrack', 'ambient', 'electronic', 'classical'];
 }
 
 /**
@@ -204,4 +202,5 @@ function getDefaultGenres(boardGame: BoardGame, atmosphereSettings: AtmosphereSe
   
   // Generic fallback
   return ['instrumental', 'soundtrack', 'ambient', 'electronic'];
+} 
 } 
