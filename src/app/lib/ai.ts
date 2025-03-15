@@ -203,4 +203,3 @@ function getDefaultGenres(boardGame: BoardGame, atmosphereSettings: AtmosphereSe
   // Generic fallback
   return ['instrumental', 'soundtrack', 'ambient', 'electronic'];
 } 
-} 
