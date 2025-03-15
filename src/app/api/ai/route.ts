@@ -123,17 +123,7 @@ export async function POST(request: NextRequest) {
     // Return fallback response with default genres and audio features
     return NextResponse.json({
       genres: ['instrumental', 'soundtrack', 'ambient', 'electronic', 'classical'],
-      audioFeatures: {
-        acousticness: 0.5,
-        danceability: 0.5,
-        energy: 0.5,
-        instrumentalness: 0.5,
-        liveness: 0.3,
-        speechiness: 0.1,
-        tempo: 120,
-        valence: 0.5
-      },
-      explanation: "Fallback response due to API error. These genres and audio features provide a balanced soundtrack suitable for most board games."
+      explanation: "Fallback response due to API error. These genres provide a balanced soundtrack suitable for most board games."
     });
   }
 }
@@ -152,16 +142,7 @@ BOARD GAME:
 - Mechanics: ${boardGame.mechanics.join(', ')}
 
 Please provide:
-1. The best 5 Spotify music genres that would match this board game's theme and gameplay
-2. Recommended Spotify audio feature values (0.0 to 1.0 scale for most, except tempo):
-   - acousticness: how acoustic the music should be
-   - danceability: how suitable for dancing
-   - energy: perceptual measure of intensity and activity
-   - instrumentalness: predicts whether a track contains no vocals
-   - liveness: detects presence of audience in the recording
-   - speechiness: presence of spoken words
-   - tempo: estimated tempo in BPM (typically 50-150)
-   - valence: musical positiveness conveyed by the track
+1. The best 5 Spotify music genres/keywords that would match this board game's theme and gameplay
 
 CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:
 1. FIRST provide a single valid JSON object with the structure shown below
@@ -172,17 +153,7 @@ CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:
 
 JSON FORMAT:
 {
-  "genres": ["genre1", "genre2", "genre3", "genre4", "genre5"],
-  "audioFeatures": {
-    "acousticness": 0.5,
-    "danceability": 0.5,
-    "energy": 0.5,
-    "instrumentalness": 0.5,
-    "liveness": 0.5,
-    "speechiness": 0.5,
-    "tempo": 120,
-    "valence": 0.5
-  }
+  "genres": ["genre1/keyword1", "genre2/keyword2", "genre3/keyword3", "genre4/keyword4", "genre5/keyword5"]
 }
 `;
 }
@@ -196,7 +167,7 @@ function parseAIResponse(responseText: string, boardGame?: BoardGame): any {
     
     // First, try to extract the first JSON object in the response
     // This regex looks for the first complete JSON object with proper structure
-    const jsonRegex = /\{[\s\S]*?"genres"\s*:\s*\[[\s\S]*?\][\s\S]*?"audioFeatures"\s*:\s*\{[\s\S]*?\}[\s\S]*?\}/;
+    const jsonRegex = /\{[\s\S]*?"genres"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/;
     const jsonMatch = responseText.match(jsonRegex);
     
     if (jsonMatch) {
@@ -210,23 +181,13 @@ function parseAIResponse(responseText: string, boardGame?: BoardGame): any {
         
         // If no explanation was found, generate a default one based on the board game
         if (!explanation && boardGame) {
-          explanation = `These recommendations are chosen to match the ${boardGame.categories.join(', ')} themes in ${boardGame.name}, creating an atmosphere that enhances the gameplay experience. The audio features are balanced to provide an immersive soundtrack without distracting from the game.`;
+          explanation = `These genre recommendations are chosen to match the ${boardGame.categories.join(', ')} themes in ${boardGame.name}, creating an atmosphere that enhances the gameplay experience.`;
         } else if (!explanation) {
-          explanation = "These genres and audio features were selected to create an immersive atmosphere that complements the board game's theme and mechanics.";
+          explanation = "These genres were selected to create an immersive atmosphere that complements the board game's theme and mechanics.";
         }
         
         return {
           genres: jsonData.genres || [],
-          audioFeatures: jsonData.audioFeatures || {
-            acousticness: 0.5,
-            danceability: 0.5,
-            energy: 0.5,
-            instrumentalness: 0.5,
-            liveness: 0.3,
-            speechiness: 0.1,
-            tempo: 120,
-            valence: 0.5
-          },
           explanation: explanation
         };
       } catch (jsonError) {
@@ -242,34 +203,14 @@ function parseAIResponse(responseText: string, boardGame?: BoardGame): any {
     
     return {
       genres: genres,
-      audioFeatures: {
-        acousticness: 0.5,
-        danceability: 0.5,
-        energy: 0.5,
-        instrumentalness: 0.5,
-        liveness: 0.3,
-        speechiness: 0.1,
-        tempo: 120,
-        valence: 0.5
-      },
-      explanation: explanation || "Generated based on the board game's theme and mechanics."
+      explanation: explanation
     };
   } catch (error) {
     console.error('Error parsing AI response:', error);
     
     return {
       genres: ['instrumental', 'soundtrack', 'ambient', 'electronic', 'classical'],
-      audioFeatures: {
-        acousticness: 0.5,
-        danceability: 0.5,
-        energy: 0.5,
-        instrumentalness: 0.5,
-        liveness: 0.3,
-        speechiness: 0.1,
-        tempo: 120,
-        valence: 0.5
-      },
-      explanation: "Failed to parse AI response. Using default genres and audio features suitable for most board games."
+      explanation: "Fallback response due to parsing error. These genres provide a balanced soundtrack suitable for most board games."
     };
   }
 }

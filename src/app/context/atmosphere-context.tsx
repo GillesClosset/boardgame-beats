@@ -1,19 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
-import { AtmosphereSettings, BoardGame, SearchResult } from '../types';
-
-interface AudioFeatures {
-  acousticness: number;
-  danceability: number;
-  energy: number;
-  instrumentalness: number;
-  liveness: number;
-  loudness: number;
-  speechiness: number;
-  tempo: number;
-  valence: number;
-}
+import { AtmosphereSettings, BoardGame, SearchResult, SpotifyTrack } from '../types';
 
 interface AtmosphereContextType {
   // Game data
@@ -21,12 +9,6 @@ interface AtmosphereContextType {
   searchResult: SearchResult | null;
   setSelectedGame: (game: BoardGame | null) => void;
   setSearchResult: (result: SearchResult | null) => void;
-  
-  // Audio features
-  audioFeatures: AudioFeatures;
-  updateAudioFeature: (name: string, value: number) => void;
-  resetAudioFeature: (name: string) => void;
-  resetAllAudioFeatures: () => void;
   
   // Genres
   selectedGenres: string[];
@@ -38,14 +20,16 @@ interface AtmosphereContextType {
   
   // AI suggestions tracking
   aiSuggestedGenres: string[];
-  aiModifiedFeatures: string[];
-  setAiSuggestions: (genres: string[], features: Partial<AudioFeatures>, explanation?: string) => void;
+  setAiSuggestions: (genres: string[], explanation?: string) => void;
   
   // AI explanation
   aiExplanation: string | null;
   
-  // User modifications tracking
-  userModifiedFeatures: string[];
+  // Spotify search results
+  spotifyTracks: SpotifyTrack[];
+  updateSpotifyTracks: (tracks: SpotifyTrack[]) => void;
+  addSpotifyTracks: (tracks: SpotifyTrack[]) => void;
+  clearSpotifyTracks: () => void;
   
   // Mood
   mood: string;
@@ -55,27 +39,12 @@ interface AtmosphereContextType {
   resetAtmosphere: () => void;
 }
 
-const defaultAudioFeatures: AudioFeatures = {
-  acousticness: 0.5,
-  danceability: 0.5,
-  energy: 0.5,
-  instrumentalness: 0.5,
-  liveness: 0.5,
-  loudness: -30,
-  speechiness: 0.5,
-  tempo: 120,
-  valence: 0.5,
-};
-
 const AtmosphereContext = createContext<AtmosphereContextType | undefined>(undefined);
 
 export function AtmosphereProvider({ children }: { children: ReactNode }) {
   // Game data
   const [selectedGame, setSelectedGame] = useState<BoardGame | null>(null);
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
-  
-  // Audio features
-  const [audioFeatures, setAudioFeatures] = useState<AudioFeatures>(defaultAudioFeatures);
   
   // Genres
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -85,47 +54,15 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
   
   // AI suggestions tracking
   const [aiSuggestedGenres, setAiSuggestedGenres] = useState<string[]>([]);
-  const [aiModifiedFeatures, setAiModifiedFeatures] = useState<string[]>([]);
   
   // AI explanation
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
   
-  // User modifications tracking
-  const [userModifiedFeatures, setUserModifiedFeatures] = useState<string[]>([]);
+  // Spotify search results
+  const [spotifyTracks, setSpotifyTracks] = useState<SpotifyTrack[]>([]);
   
   // Mood
   const [mood, setMood] = useState<string>('neutral');
-
-  // Update a single audio feature
-  const updateAudioFeature = useCallback((name: string, value: number) => {
-    setAudioFeatures(prev => ({ ...prev, [name]: value }));
-    
-    // Track that this feature was modified by the user
-    if (!userModifiedFeatures.includes(name)) {
-      setUserModifiedFeatures(prev => [...prev, name]);
-    }
-  }, [userModifiedFeatures]);
-
-  // Reset a single audio feature to default
-  const resetAudioFeature = useCallback((name: string) => {
-    setAudioFeatures(prev => ({ 
-      ...prev, 
-      [name]: defaultAudioFeatures[name as keyof AudioFeatures] 
-    }));
-    
-    // Remove from user modified list
-    setUserModifiedFeatures(prev => prev.filter(feature => feature !== name));
-    
-    // Remove from AI modified list
-    setAiModifiedFeatures(prev => prev.filter(feature => feature !== name));
-  }, []);
-
-  // Reset all audio features
-  const resetAllAudioFeatures = useCallback(() => {
-    setAudioFeatures(defaultAudioFeatures);
-    setUserModifiedFeatures([]);
-    setAiModifiedFeatures([]);
-  }, []);
 
   // Update selected genres
   const updateSelectedGenres = useCallback((genres: string[]) => {
@@ -138,7 +75,7 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Set AI suggestions
-  const setAiSuggestions = useCallback((genres: string[], features: Partial<AudioFeatures>, explanation?: string) => {
+  const setAiSuggestions = useCallback((genres: string[], explanation?: string) => {
     // Update AI suggested genres
     setAiSuggestedGenres(genres);
     
@@ -151,41 +88,44 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
     if (selectedGenres.length === 0) {
       setSelectedGenres(genres.slice(0, 5)); // Limit to 5 genres
     }
-    
-    // Update audio features that haven't been modified by the user
-    // Use functional updates to avoid stale closures
-    setAudioFeatures(prevFeatures => {
-      const newFeatures = { ...prevFeatures };
-      const modifiedFeaturesList: string[] = [];
-      
-      Object.entries(features).forEach(([name, value]) => {
-        if (value !== undefined && !userModifiedFeatures.includes(name)) {
-          newFeatures[name as keyof AudioFeatures] = value as number;
-          modifiedFeaturesList.push(name);
-        }
-      });
-      
-      // Update the list of AI modified features
-      setAiModifiedFeatures(modifiedFeaturesList);
-      
-      return newFeatures;
-    });
-  }, [selectedGenres, userModifiedFeatures]);
+  }, [selectedGenres]);
 
   // Update mood
   const updateMood = useCallback((newMood: string) => {
     setMood(newMood);
   }, []);
 
+  // Update spotify tracks
+  const updateSpotifyTracks = useCallback((tracks: SpotifyTrack[]) => {
+    setSpotifyTracks(tracks);
+  }, []);
+
+  // Add more spotify tracks
+  const addSpotifyTracks = useCallback((tracks: SpotifyTrack[]) => {
+    setSpotifyTracks(prevTracks => {
+      // Create a map of existing track IDs for quick lookup
+      const existingTrackIds = new Map(prevTracks.map(track => [track.id, true]));
+      
+      // Filter out duplicates from the new tracks
+      const uniqueNewTracks = tracks.filter(track => !existingTrackIds.has(track.id));
+      
+      // Return the combined array of tracks
+      return [...prevTracks, ...uniqueNewTracks];
+    });
+  }, []);
+
+  // Clear spotify tracks
+  const clearSpotifyTracks = useCallback(() => {
+    setSpotifyTracks([]);
+  }, []);
+
   // Reset everything
   const resetAtmosphere = useCallback(() => {
-    setAudioFeatures(defaultAudioFeatures);
     setSelectedGenres([]);
     setTrackCount(10);
     setAiSuggestedGenres([]);
-    setAiModifiedFeatures([]);
     setAiExplanation(null);
-    setUserModifiedFeatures([]);
+    setSpotifyTracks([]);
     setMood('neutral');
   }, []);
 
@@ -196,19 +136,17 @@ export function AtmosphereProvider({ children }: { children: ReactNode }) {
         searchResult,
         setSelectedGame,
         setSearchResult,
-        audioFeatures,
-        updateAudioFeature,
-        resetAudioFeature,
-        resetAllAudioFeatures,
         selectedGenres,
         updateSelectedGenres,
         trackCount,
         updateTrackCount,
         aiSuggestedGenres,
-        aiModifiedFeatures,
         setAiSuggestions,
         aiExplanation,
-        userModifiedFeatures,
+        spotifyTracks,
+        updateSpotifyTracks,
+        addSpotifyTracks,
+        clearSpotifyTracks,
         mood,
         updateMood,
         resetAtmosphere,

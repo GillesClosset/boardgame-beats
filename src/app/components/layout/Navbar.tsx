@@ -55,6 +55,20 @@ export default function Navbar() {
             <Link href="/playlists" passHref>
               <Text fontWeight="medium" cursor="pointer">My Playlists</Text>
             </Link>
+            <Link href="/spotify-test" passHref>
+              <Text fontWeight="medium" cursor="pointer" position="relative">
+                Spotify Test
+                <Badge 
+                  colorScheme="green" 
+                  position="absolute" 
+                  top="-8px" 
+                  right="-8px" 
+                  fontSize="0.6em"
+                >
+                  New
+                </Badge>
+              </Text>
+            </Link>
             <Link href="/ai-test" passHref>
               <Text fontWeight="medium" cursor="pointer" position="relative">
                 AI Test

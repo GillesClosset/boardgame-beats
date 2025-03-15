@@ -26,16 +26,7 @@ export const generateMusicRecommendations = async (
     // Return fallback response in case of error
     return {
       genres: ['instrumental', 'soundtrack', 'ambient', 'electronic', 'classical'],
-      audioFeatures: {
-        acousticness: 0.5,
-        danceability: 0.5,
-        energy: 0.5,
-        instrumentalness: 0.5,
-        liveness: 0.3,
-        speechiness: 0.1,
-        tempo: 120,
-        valence: 0.5
-      }
+      explanation: "Failed to generate recommendations. These genres provide a balanced soundtrack suitable for most board games."
     };
   }
 };
@@ -89,58 +80,31 @@ Format your response as JSON with the following structure:
 /**
  * Parse the AI response into a structured format
  */
-function parseAIResponse(responseText: string): AIResponse {
+function parseAIResponse(responseText: string): any {
   try {
     // Try to extract JSON from the response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
     
     if (jsonMatch) {
       const jsonData = JSON.parse(jsonMatch[0]);
       
       return {
         genres: jsonData.genres || [],
-        audioFeatures: jsonData.audioFeatures || {
-          acousticness: 0.5,
-          danceability: 0.5,
-          energy: 0.5,
-          instrumentalness: 0.5,
-          liveness: 0.3,
-          speechiness: 0.1,
-          tempo: 120,
-          valence: 0.5
-        }
+        explanation: extractExplanation(responseText, jsonMatch[0]) || "Generated based on the board game's theme and mechanics."
       };
     }
     
     // Fallback if JSON parsing fails
     return {
       genres: extractGenres(responseText),
-      audioFeatures: {
-        acousticness: 0.5,
-        danceability: 0.5,
-        energy: 0.5,
-        instrumentalness: 0.5,
-        liveness: 0.3,
-        speechiness: 0.1,
-        tempo: 120,
-        valence: 0.5
-      }
+      explanation: extractExplanation(responseText, "") || "Generated based on the board game's theme and mechanics."
     };
   } catch (error) {
     console.error('Error parsing AI response:', error);
     
     return {
       genres: [],
-      audioFeatures: {
-        acousticness: 0.5,
-        danceability: 0.5,
-        energy: 0.5,
-        instrumentalness: 0.5,
-        liveness: 0.3,
-        speechiness: 0.1,
-        tempo: 120,
-        valence: 0.5
-      }
+      explanation: "Error parsing AI response."
     };
   }
 }
@@ -160,6 +124,33 @@ function extractGenres(text: string): string[] {
   }
   
   return ['instrumental', 'soundtrack', 'ambient', 'electronic', 'classical'];
+}
+
+/**
+ * Extract explanation from text after the JSON
+ */
+function extractExplanation(text: string, jsonString: string): string | null {
+  try {
+    // If we have a jsonString, extract everything after it for the explanation
+    if (jsonString) {
+      const explanationText = text.substring(text.indexOf(jsonString) + jsonString.length).trim();
+      return explanationText || null;
+    }
+    
+    // Try to extract explanation looking for common patterns
+    const explanationMatches = text.match(/explanation:?\s*([^.]*(?:\.[^.]*){1,3})/i) ||
+                              text.match(/chosen\s*([^.]*(?:\.[^.]*){1,3})/i) ||
+                              text.match(/selected\s*([^.]*(?:\.[^.]*){1,3})/i);
+    
+    if (explanationMatches && explanationMatches[1]) {
+      return explanationMatches[1].trim();
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error extracting explanation:', error);
+    return null;
+  }
 }
 
 /**

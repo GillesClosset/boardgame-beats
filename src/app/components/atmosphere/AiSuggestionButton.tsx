@@ -20,7 +20,7 @@ import { BoardGame } from '@/app/types';
 
 interface AiSuggestionButtonProps {
   game: BoardGame | null;
-  onSuggestionsGenerated: (genres: string[], audioFeatures: Record<string, number>, explanation?: string) => void;
+  onSuggestionsGenerated: (genres: string[], explanation?: string) => void;
   isDisabled?: boolean;
 }
 
@@ -72,24 +72,14 @@ const AiSuggestionButton: React.FC<AiSuggestionButtonProps> = ({
 
       // Pass the suggestions to the parent component
       onSuggestionsGenerated(
-        aiResponse.genres || [], 
-        aiResponse.audioFeatures || {
-          acousticness: 0.5,
-          danceability: 0.5,
-          energy: 0.5,
-          instrumentalness: 0.5,
-          liveness: 0.3,
-          speechiness: 0.1,
-          tempo: 120,
-          valence: 0.5
-        },
+        aiResponse.genres || [],
         aiResponse.explanation || "Generated based on the board game's theme and mechanics."
       );
 
       if (!error) {
         toast({
           title: 'AI Suggestions Generated',
-          description: 'Music recommendations have been generated based on the game theme and mechanics.',
+          description: 'Music genre recommendations have been generated based on the game theme and mechanics.',
           status: 'success',
           duration: 5000,
           isClosable: true,

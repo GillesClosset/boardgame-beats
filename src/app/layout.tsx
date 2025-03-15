@@ -2,7 +2,6 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Providers } from './providers';
-import { AtmosphereProvider } from './context/atmosphere-context';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,9 +19,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Providers>
-          <AtmosphereProvider>
-            {children}
-          </AtmosphereProvider>
+          {children}
         </Providers>
       </body>
     </html>

@@ -19,6 +19,8 @@ const SPOTIFY_SCOPES = [
  */
 async function refreshAccessToken(token: JWT): Promise<JWT> {
   try {
+    console.log('Refreshing access token...');
+    
     const basicAuth = Buffer.from(
       `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
     ).toString('base64');
@@ -31,15 +33,18 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
       },
       body: new URLSearchParams({
         grant_type: 'refresh_token',
-        refresh_token: token.refreshToken,
+        refresh_token: token.refreshToken as string,
       }),
     });
 
     const refreshedTokens = await response.json();
 
     if (!response.ok) {
+      console.error('Error refreshing token:', refreshedTokens);
       throw refreshedTokens;
     }
+
+    console.log('Token refreshed successfully');
 
     return {
       ...token,
@@ -58,8 +63,6 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
   }
 }
 
-// All debugging logs have been removed
-
 const handler = NextAuth({
   providers: [
     SpotifyProvider({
@@ -76,6 +79,7 @@ const handler = NextAuth({
     async jwt({ token, account, user }) {
       // Initial sign in
       if (account && user) {
+        console.log('Initial sign in, setting token');
         return {
           id: user.id,
           accessToken: account.access_token as string,
@@ -90,6 +94,7 @@ const handler = NextAuth({
         return token;
       }
 
+      console.log('Token expired, refreshing...');
       // Access token has expired, try to refresh it
       return refreshAccessToken(token);
     },
@@ -105,6 +110,9 @@ const handler = NextAuth({
           username: token.username as string,
         };
         session.error = token.error;
+        
+        // Add token expiry to session for debugging
+        session.expires = new Date(token.accessTokenExpires as number).toISOString();
       }
       return session;
     },
@@ -114,7 +122,18 @@ const handler = NextAuth({
     maxAge: 60 * 60 * 24 * 30, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: false, // Completely disable debug mode
+  debug: true, // Enable debug mode to see what's happening
+  logger: {
+    error(code, metadata) {
+      console.error(code, metadata);
+    },
+    warn(code) {
+      console.warn(code);
+    },
+    debug(code, metadata) {
+      console.log(code, metadata);
+    },
+  },
 });
 
 export { handler as GET, handler as POST }; 
