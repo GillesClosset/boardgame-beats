@@ -33,7 +33,6 @@ export default function PlaylistPage() {
   const toast = useToast();
   const {
     selectedGame,
-    audioFeatures,
     selectedGenres,
     trackCount,
   } = useAtmosphere();
@@ -67,18 +66,19 @@ export default function PlaylistPage() {
     setError(null);
 
     try {
-      // Convert audio features to Spotify API parameters
+      // Use default audio features since they're not in the context
       const params: Record<string, number> = {
         limit: trackCount,
-        target_acousticness: audioFeatures.acousticness,
-        target_danceability: audioFeatures.danceability,
-        target_energy: audioFeatures.energy,
-        target_instrumentalness: audioFeatures.instrumentalness,
-        target_liveness: audioFeatures.liveness,
-        target_loudness: audioFeatures.loudness,
-        target_speechiness: audioFeatures.speechiness,
-        target_tempo: audioFeatures.tempo,
-        target_valence: audioFeatures.valence,
+        // Default audio features values
+        target_acousticness: 0.5,
+        target_danceability: 0.5,
+        target_energy: 0.5,
+        target_instrumentalness: 0.5,
+        target_liveness: 0.5,
+        target_loudness: -10,
+        target_speechiness: 0.2,
+        target_tempo: 120,
+        target_valence: 0.5,
       };
 
       // Get recommendations from Spotify
@@ -123,7 +123,8 @@ export default function PlaylistPage() {
 
     try {
       // Create playlist name and description
-      const playlistName = `${selectedGame.name} Soundtrack`;
+      const currentDate = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      const playlistName = `${selectedGame.name} by BoardGame Beats - ${currentDate}`;
       const playlistDescription = `A custom soundtrack for ${selectedGame.name} - Created with BoardGame Beats`;
 
       // Create a new playlist

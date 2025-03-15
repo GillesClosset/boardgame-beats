@@ -26,20 +26,20 @@ import {
   useToast,
   Icon,
   Badge,
+  Center,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react';
 import { useAtmosphere } from '@/app/context/atmosphere-context';
 import GenreSelector from '@/app/components/atmosphere/GenreSelector';
 import KeywordSelector from '@/app/components/atmosphere/KeywordSelector';
 import TrackCount from '@/app/components/atmosphere/TrackCount';
-import AiSuggestionButton from '@/app/components/atmosphere/AiSuggestionButton';
 import { SpotifyTrack } from '../types';
 import { FaSpotify } from 'react-icons/fa';
 
 export default function AtmospherePage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const {
     selectedGame,
     selectedGenres,
@@ -77,26 +77,65 @@ export default function AtmospherePage() {
     }
   }, [selectedGame, router]);
 
-  // Memoize the handlers to prevent unnecessary re-renders
-  const handleAiSuggestions = useCallback((genres: string[], keywords: string[], explanation?: string) => {
-    setAiSuggestions(genres, keywords, explanation);
-    
-    // Clear previous search results
-    clearSpotifyTracks();
-    
-    // Search for tracks based on the suggested genres by default
-    if (genres.length > 0 && session?.user?.accessToken) {
-      handleSearchByGenres(genres);
+  // Check authentication status when component mounts
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please sign in with Spotify to create playlists',
+        status: 'warning',
+        duration: 5000,
+        isClosable: true,
+      });
     }
-  }, [setAiSuggestions, clearSpotifyTracks, session?.user?.accessToken]);
+  }, [status, toast]);
 
-  const handleSearchByGenres = async (genres: string[]) => {
+  // Handle Spotify sign in
+  const handleSignIn = useCallback(async () => {
+    try {
+      await signIn('spotify', { callbackUrl: window.location.href });
+    } catch (error) {
+      console.error('Sign in error:', error);
+      toast({
+        title: 'Authentication Failed',
+        description: 'Failed to sign in with Spotify. Please try again.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }, [toast]);
+
+  // Memoize the handlers to prevent unnecessary re-renders
+  const handleSearchByGenres = useCallback(async (genres: string[]) => {
+    console.log('handleSearchByGenres called with genres:', genres);
+    
+    // Prevent duplicate calls if already searching
+    if (isSearching) {
+      console.warn('Search already in progress, ignoring duplicate call');
+      return;
+    }
+    
     if (!session?.user?.accessToken) {
       toast({
         title: 'Authentication required',
-        description: 'Please make sure you are signed in with Spotify',
+        description: 'Please sign in with Spotify to search for music',
         status: 'error',
         duration: 5000,
+        isClosable: true,
+      });
+      handleSignIn();
+      return;
+    }
+
+    // Safety check for empty genres array
+    if (!genres || genres.length === 0) {
+      console.warn('No genres provided to search function');
+      toast({
+        title: 'No genres selected',
+        description: 'Please select at least one genre to search',
+        status: 'warning',
+        duration: 3000,
         isClosable: true,
       });
       return;
@@ -107,16 +146,44 @@ export default function AtmospherePage() {
     clearSpotifyTracks();
 
     try {
-      for (const genre of genres) {
+      console.log('Starting genre search for', genres.length, 'genres');
+      let foundTracks = false;
+      
+      // Create a local copy of the genres to avoid any potential issues
+      const genresToSearch = [...genres];
+      
+      for (const genre of genresToSearch) {
+        console.log('Searching for genre:', genre);
         const response = await fetch(`/api/spotify?action=search&query=${encodeURIComponent(genre)}&limit=5`);
         const data = await response.json();
         
         if (response.ok && data.tracks && data.tracks.length > 0) {
           // Add these tracks to our results
+          console.log(`Found ${data.tracks.length} tracks for genre: ${genre}`);
           addSpotifyTracks(data.tracks);
+          foundTracks = true;
         } else {
           console.warn(`No results found for genre: ${genre}`);
         }
+      }
+      
+      // Check if we found any tracks at all
+      if (!foundTracks) {
+        toast({
+          title: 'No tracks found',
+          description: 'Try different genres or use keywords instead',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: 'Search completed',
+          description: `Found tracks for your selected genres`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
       }
     } catch (error) {
       console.error('Error searching tracks:', error);
@@ -129,16 +196,59 @@ export default function AtmospherePage() {
       });
     } finally {
       setIsSearching(false);
+      console.log('Genre search completed');
     }
-  };
+  }, [session?.user?.accessToken, toast, setActiveSearchType, clearSpotifyTracks, addSpotifyTracks, handleSignIn, isSearching]);
 
-  const handleSearchByKeywords = async (keywords: string[]) => {
+  const handleAiSuggestions = useCallback((genres: string[], keywords: string[], explanation?: string) => {
+    setAiSuggestions(genres, keywords, explanation);
+    
+    // Clear previous search results
+    clearSpotifyTracks();
+    
+    // Search for tracks based on the suggested genres by default
+    if (genres.length > 0 && session?.user?.accessToken) {
+      handleSearchByGenres(genres);
+    } else if (genres.length > 0 && !session?.user?.accessToken) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please sign in with Spotify to search for music',
+        status: 'warning',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }, [setAiSuggestions, clearSpotifyTracks, session?.user?.accessToken, handleSearchByGenres, toast]);
+
+  const handleSearchByKeywords = useCallback(async (keywords: string[]) => {
+    console.log('handleSearchByKeywords called with keywords:', keywords);
+    
+    // Prevent duplicate calls if already searching
+    if (isSearching) {
+      console.warn('Search already in progress, ignoring duplicate call');
+      return;
+    }
+    
     if (!session?.user?.accessToken) {
       toast({
         title: 'Authentication required',
-        description: 'Please make sure you are signed in with Spotify',
+        description: 'Please sign in with Spotify to search for music',
         status: 'error',
         duration: 5000,
+        isClosable: true,
+      });
+      handleSignIn();
+      return;
+    }
+
+    // Safety check for empty keywords array
+    if (!keywords || keywords.length === 0) {
+      console.warn('No keywords provided to search function');
+      toast({
+        title: 'No keywords selected',
+        description: 'Please select at least one keyword to search',
+        status: 'warning',
+        duration: 3000,
         isClosable: true,
       });
       return;
@@ -149,16 +259,51 @@ export default function AtmospherePage() {
     clearSpotifyTracks();
 
     try {
-      for (const keyword of keywords) {
+      console.log('Starting keyword search for', keywords.length, 'keywords');
+      let foundTracks = false;
+      
+      // Create a local copy of the keywords to avoid any potential issues
+      const keywordsToSearch = [...keywords];
+      
+      for (const keyword of keywordsToSearch) {
+        console.log('Searching for keyword:', keyword);
         const response = await fetch(`/api/spotify?action=search&query=${encodeURIComponent(keyword)}&limit=5`);
         const data = await response.json();
         
         if (response.ok && data.tracks && data.tracks.length > 0) {
           // Add these tracks to our results
+          console.log(`Found ${data.tracks.length} tracks for keyword: ${keyword}`);
           addSpotifyTracks(data.tracks);
+          foundTracks = true;
         } else {
           console.warn(`No results found for keyword: ${keyword}`);
+          toast({
+            title: 'Limited results',
+            description: `No tracks found for "${keyword}"`,
+            status: 'info',
+            duration: 2000,
+            isClosable: true,
+          });
         }
+      }
+
+      // Check if we found any tracks at all
+      if (!foundTracks) {
+        toast({
+          title: 'No tracks found',
+          description: 'Try different keywords or use genres instead',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: 'Search completed',
+          description: `Found tracks for your selected keywords`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
       }
     } catch (error) {
       console.error('Error searching tracks:', error);
@@ -171,18 +316,34 @@ export default function AtmospherePage() {
       });
     } finally {
       setIsSearching(false);
+      console.log('Keyword search completed');
     }
-  };
+  }, [session?.user?.accessToken, toast, setActiveSearchType, clearSpotifyTracks, addSpotifyTracks, handleSignIn, isSearching]);
+  
+  // Auto-search when arriving at the page with AI suggestions but no tracks
+  useEffect(() => {
+    // If we have genres but no tracks yet, trigger a search automatically
+    if (selectedGame && 
+        selectedGenres.length > 0 && 
+        spotifyTracks.length === 0 && 
+        session?.user?.accessToken && 
+        !isSearching) {
+      // Default to searching by genres
+      console.log('Auto-searching by genres on page load');
+      handleSearchByGenres(selectedGenres);
+    }
+  }, [selectedGame, selectedGenres, spotifyTracks.length, session?.user?.accessToken, handleSearchByGenres, isSearching]);
 
   const handleContinue = useCallback(async () => {
     if (!session?.user?.accessToken) {
       toast({
         title: 'Authentication required',
-        description: 'Please make sure you are signed in with Spotify',
+        description: 'Please sign in with Spotify to create a playlist',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
+      handleSignIn();
       return;
     }
 
@@ -220,7 +381,8 @@ export default function AtmospherePage() {
       }
 
       // Create a playlist
-      const playlistName = `${selectedGame.name} Soundtrack - BoardGame Beats`;
+      const currentDate = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      const playlistName = `${selectedGame.name} by BoardGame Beats - ${currentDate}`;
       
       // Create a shorter description to avoid exceeding Spotify's limit (max 300 characters)
       let playlistDescription = `A soundtrack for the board game "${selectedGame.name}" with genres: ${selectedGenres.join(', ')}`;
@@ -299,7 +461,7 @@ export default function AtmospherePage() {
     } finally {
       setIsCreatingPlaylist(false);
     }
-  }, [selectedGame, selectedGenres, spotifyTracks, aiExplanation, session?.user?.accessToken, toast]);
+  }, [selectedGame, selectedGenres, spotifyTracks, aiExplanation, session?.user?.accessToken, toast, handleSignIn]);
 
   if (!selectedGame) {
     return (
@@ -321,6 +483,36 @@ export default function AtmospherePage() {
     <Box bg={bgColor} minH="100vh" py={8}>
       <Container maxW="container.xl">
         <VStack spacing={8} align="stretch">
+          {status === 'unauthenticated' && (
+            <Alert 
+              status="warning" 
+              variant="solid" 
+              borderRadius="md"
+              flexDirection={{ base: 'column', sm: 'row' }}
+              alignItems="center"
+              justifyContent="space-between"
+              py={4}
+            >
+              <Flex alignItems="center">
+                <AlertIcon />
+                <Box>
+                  <AlertTitle>Authentication Required</AlertTitle>
+                  <AlertDescription>
+                    Sign in with Spotify to search for music and create playlists
+                  </AlertDescription>
+                </Box>
+              </Flex>
+              <Button 
+                colorScheme="green" 
+                onClick={handleSignIn} 
+                mt={{ base: 3, sm: 0 }}
+                leftIcon={<Icon as={FaSpotify} />}
+              >
+                Connect with Spotify
+              </Button>
+            </Alert>
+          )}
+
           <Box textAlign="center" mb={4}>
             <Heading as="h1" size="2xl" mb={4} color={textColor}>
               Customize Atmosphere
@@ -329,11 +521,6 @@ export default function AtmospherePage() {
               Tailor the musical atmosphere for {selectedGame.name}
             </Text>
           </Box>
-
-          <AiSuggestionButton 
-            game={selectedGame}
-            onSuggestionsGenerated={handleAiSuggestions}
-          />
 
           {aiExplanation && (
             <Box 
@@ -372,9 +559,17 @@ export default function AtmospherePage() {
                 <Button 
                   mt={4} 
                   colorScheme="blue" 
-                  onClick={() => handleSearchByGenres(selectedGenres)}
-                  isDisabled={selectedGenres.length === 0}
+                  onClick={() => {
+                    // Prevent duplicate calls by checking if already searching
+                    if (isSearching) {
+                      return;
+                    }
+                    handleSearchByGenres(selectedGenres);
+                  }}
+                  isDisabled={selectedGenres.length === 0 || isSearching}
                   width="full"
+                  isLoading={isSearching && activeSearchType === 'genres'}
+                  loadingText="Searching..."
                 >
                   Search by Genres
                 </Button>
@@ -402,9 +597,32 @@ export default function AtmospherePage() {
                 <Button 
                   mt={4} 
                   colorScheme="green" 
-                  onClick={() => handleSearchByKeywords(selectedKeywords)}
-                  isDisabled={selectedKeywords.length === 0}
+                  onClick={() => {
+                    // Prevent duplicate calls by checking if already searching
+                    if (isSearching) {
+                      return;
+                    }
+                    
+                    console.log('Keyword search button clicked, selected keywords:', selectedKeywords);
+                    if (selectedKeywords.length > 0) {
+                      console.log('Calling handleSearchByKeywords with:', selectedKeywords);
+                      // Create a copy of the array to avoid reference issues
+                      const keywordsToSearch = [...selectedKeywords];
+                      handleSearchByKeywords(keywordsToSearch);
+                    } else {
+                      toast({
+                        title: 'No keywords selected',
+                        description: 'Please select at least one keyword to search',
+                        status: 'warning',
+                        duration: 3000,
+                        isClosable: true,
+                      });
+                    }
+                  }}
+                  isDisabled={selectedKeywords.length === 0 || isSearching}
                   width="full"
+                  isLoading={isSearching && activeSearchType === 'keywords'}
+                  loadingText="Searching..."
                 >
                   Search by Keywords
                 </Button>
@@ -482,7 +700,8 @@ export default function AtmospherePage() {
               </SimpleGrid>
             ) : (
               <Text textAlign="center" color="gray.500" py={10}>
-                No search results available. Click "Get AI Suggestions" or use the search buttons to find music.
+                Music suggestions have been generated based on {selectedGame.name}. 
+                Click "Search by Genres" or "Search by Keywords" to find matching tracks.
               </Text>
             )}
           </Box>
@@ -490,29 +709,43 @@ export default function AtmospherePage() {
           <Divider my={4} />
 
           <Flex justify="center" mt={4} direction="column" align="center" gap={4}>
-            <Button 
-              colorScheme="blue" 
-              size="lg" 
-              onClick={handleContinue}
-              px={8}
-              isLoading={isCreatingPlaylist}
-              loadingText="Creating Playlist"
-              isDisabled={spotifyTracks.length === 0 || !session?.user?.accessToken}
-            >
-              Generate Playlist
-            </Button>
+            {status === 'authenticated' ? (
+              <>
+                <Button 
+                  colorScheme="blue" 
+                  size="lg" 
+                  onClick={handleContinue}
+                  px={8}
+                  isLoading={isCreatingPlaylist}
+                  loadingText="Creating Playlist"
+                  isDisabled={spotifyTracks.length === 0}
+                >
+                  Generate Playlist
+                </Button>
 
-            {playlistUrl && (
-              <Button
-                as="a"
-                href={playlistUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                colorScheme="green"
+                {playlistUrl && (
+                  <Button
+                    as="a"
+                    href={playlistUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    colorScheme="green"
+                    leftIcon={<Icon as={FaSpotify} />}
+                    size="lg"
+                  >
+                    Play on Spotify
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Button 
+                colorScheme="green" 
+                size="lg" 
+                onClick={handleSignIn}
+                px={8}
                 leftIcon={<Icon as={FaSpotify} />}
-                size="lg"
               >
-                Play on Spotify
+                Connect with Spotify to Continue
               </Button>
             )}
 
