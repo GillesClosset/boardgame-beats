@@ -175,6 +175,88 @@ export async function GET(req: NextRequest) {
         }
       }
       
+      case 'createPlaylist': {
+        const userId = url.searchParams.get('userId');
+        
+        if (!userId) {
+          return NextResponse.json(
+            { error: 'User ID is required' },
+            { status: 400 }
+          );
+        }
+        
+        // For GET requests, we can only get parameters from the URL
+        const name = url.searchParams.get('name');
+        const description = url.searchParams.get('description');
+        const isPublic = url.searchParams.get('public') === 'true';
+        
+        if (!name) {
+          return NextResponse.json(
+            { error: 'Playlist name is required' },
+            { status: 400 }
+          );
+        }
+        
+        try {
+          // Create the playlist
+          console.log(`[Spotify API] Creating playlist for user ${userId} with name: ${name}`);
+          
+          // Create the playlist with the correct parameter structure
+          const playlistResponse = await spotifyClient.createPlaylist(name, {
+            description: description || '',
+            public: isPublic
+          });
+          
+          // Return with the playlist data
+          return NextResponse.json({
+            id: playlistResponse.body.id,
+            name: playlistResponse.body.name,
+            external_urls: playlistResponse.body.external_urls
+          });
+        } catch (error: any) {
+          logError('Failed to create playlist', error);
+          return NextResponse.json(
+            { error: `Failed to create playlist: ${error.message}` },
+            { status: error.statusCode || 500 }
+          );
+        }
+      }
+      
+      case 'addTracksToPlaylist': {
+        const playlistId = url.searchParams.get('playlistId');
+        
+        if (!playlistId) {
+          return NextResponse.json(
+            { error: 'Playlist ID is required' },
+            { status: 400 }
+          );
+        }
+        
+        try {
+          // Get request body (for track URIs)
+          const requestBody = await req.json();
+          const { uris } = requestBody;
+          
+          if (!uris || !Array.isArray(uris) || uris.length === 0) {
+            return NextResponse.json(
+              { error: 'Track URIs are required' },
+              { status: 400 }
+            );
+          }
+          
+          // Add tracks to the playlist
+          const response = await spotifyClient.addTracksToPlaylist(playlistId, uris);
+          
+          return NextResponse.json(response.body);
+        } catch (error: any) {
+          logError('Failed to add tracks to playlist', error);
+          return NextResponse.json(
+            { error: `Failed to add tracks to playlist: ${error.message}` },
+            { status: error.statusCode || 500 }
+          );
+        }
+      }
+      
       default:
         return NextResponse.json(
           { error: 'Invalid action parameter' },
@@ -202,8 +284,20 @@ export async function GET(req: NextRequest) {
 // POST handler for Spotify API requests
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { action } = body;
+    const url = new URL(req.url);
+    const action = url.searchParams.get('action');
+    
+    // Parse the request body
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (error) {
+      console.error('[Spotify API] Error parsing request body:', error);
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
+    }
     
     console.log(`[Spotify API] Processing POST request with action: ${action}`);
     
@@ -213,7 +307,7 @@ export async function POST(req: NextRequest) {
     // Handle different actions
     switch (action) {
       case 'recommendations': {
-        const { seedGenres, atmosphereSettings } = body;
+        const { seedGenres, atmosphereSettings } = requestBody;
         
         if (!seedGenres || !seedGenres.length) {
           return NextResponse.json(
@@ -226,7 +320,7 @@ export async function POST(req: NextRequest) {
           // Map UI parameters to Spotify API parameters
           const options = {
             seed_genres: seedGenres,
-            limit: body.limit || 20,
+            limit: requestBody.limit || 20,
             target_energy: atmosphereSettings?.energy ? atmosphereSettings.energy / 100 : undefined,
             target_tempo: atmosphereSettings?.tempo ? 60 + (atmosphereSettings.tempo * 1.4) : undefined,
             target_valence: atmosphereSettings?.mood === 'happy' ? 0.8 : 
@@ -247,8 +341,17 @@ export async function POST(req: NextRequest) {
         }
       }
       
-      case 'create-playlist': {
-        const { name, description, tracks } = body;
+      case 'createPlaylist': {
+        const userId = url.searchParams.get('userId');
+        
+        if (!userId) {
+          return NextResponse.json(
+            { error: 'User ID is required' },
+            { status: 400 }
+          );
+        }
+        
+        const { name, description, public: isPublic } = requestBody;
         
         if (!name) {
           return NextResponse.json(
@@ -257,49 +360,66 @@ export async function POST(req: NextRequest) {
           );
         }
         
-        if (!tracks || !tracks.length) {
-          return NextResponse.json(
-            { error: 'Tracks are required' },
-            { status: 400 }
-          );
-        }
-        
         try {
-          // Get user ID
-          const user = await spotifyClient.getMe();
-          const userId = user.body.id;
+          console.log(`[Spotify API] Creating playlist for user ${userId} with name: ${name}`);
           
-          // Create a simple playlist with just the name
-          const playlistResponse = await spotifyClient.createPlaylist(userId, name);
+          // Create the playlist with the correct parameter structure
+          // The method signature is createPlaylist(playlistName, options)
+          const playlistResponse = await spotifyClient.createPlaylist(name, {
+            description: description || '',
+            public: isPublic !== undefined ? isPublic : false
+          });
           
           if (!playlistResponse || !playlistResponse.body) {
             throw new Error('Failed to create playlist - no response from Spotify API');
           }
           
-          const playlist = playlistResponse.body;
-          
-          // Update the playlist with description if provided
-          if (description) {
-            await spotifyClient.changePlaylistDetails(playlist.id, {
-              description: description,
-              public: false
-            });
-          }
-          
-          // Add tracks to playlist
-          if (tracks.length > 0) {
-            const trackUris = tracks.map((track: any) => track.uri);
-            await spotifyClient.addTracksToPlaylist(playlist.id, trackUris);
-          }
-          
-          return NextResponse.json({ 
-            success: true, 
-            playlist: playlist
+          // Return the playlist data
+          return NextResponse.json({
+            id: playlistResponse.body.id,
+            name: playlistResponse.body.name,
+            external_urls: playlistResponse.body.external_urls
           });
         } catch (error: any) {
           logError('Failed to create playlist', error);
           return NextResponse.json(
             { error: `Failed to create playlist: ${error.message}` },
+            { status: error.statusCode || 500 }
+          );
+        }
+      }
+      
+      case 'addTracksToPlaylist': {
+        const playlistId = url.searchParams.get('playlistId');
+        
+        if (!playlistId) {
+          return NextResponse.json(
+            { error: 'Playlist ID is required' },
+            { status: 400 }
+          );
+        }
+        
+        const { uris } = requestBody;
+        
+        if (!uris || !Array.isArray(uris) || uris.length === 0) {
+          return NextResponse.json(
+            { error: 'Track URIs are required' },
+            { status: 400 }
+          );
+        }
+        
+        try {
+          console.log(`[Spotify API] Adding ${uris.length} tracks to playlist ${playlistId}`);
+          const response = await spotifyClient.addTracksToPlaylist(playlistId, uris);
+          
+          return NextResponse.json({ 
+            success: true,
+            snapshot_id: response.body.snapshot_id 
+          });
+        } catch (error: any) {
+          logError('Failed to add tracks to playlist', error);
+          return NextResponse.json(
+            { error: `Failed to add tracks to playlist: ${error.message}` },
             { status: error.statusCode || 500 }
           );
         }

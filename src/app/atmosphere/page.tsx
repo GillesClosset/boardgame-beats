@@ -24,6 +24,7 @@ import {
   Stack,
   Spinner,
   useToast,
+  Icon,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -32,6 +33,7 @@ import GenreSelector from '@/app/components/atmosphere/GenreSelector';
 import TrackCount from '@/app/components/atmosphere/TrackCount';
 import AiSuggestionButton from '@/app/components/atmosphere/AiSuggestionButton';
 import { SpotifyTrack } from '../types';
+import { FaSpotify } from 'react-icons/fa';
 
 export default function AtmospherePage() {
   const router = useRouter();
@@ -52,6 +54,8 @@ export default function AtmospherePage() {
   } = useAtmosphere();
 
   const [isSearching, setIsSearching] = useState(false);
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
   const toast = useToast();
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
@@ -119,9 +123,132 @@ export default function AtmospherePage() {
     }
   };
 
-  const handleContinue = useCallback(() => {
-    router.push('/playlist');
-  }, [router]);
+  const handleContinue = useCallback(async () => {
+    if (!session?.user?.accessToken) {
+      toast({
+        title: 'Authentication required',
+        description: 'Please make sure you are signed in with Spotify',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (!selectedGame) {
+      toast({
+        title: 'No game selected',
+        description: 'Please select a board game first',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (spotifyTracks.length === 0) {
+      toast({
+        title: 'No tracks found',
+        description: 'Please get AI suggestions to find matching tracks',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsCreatingPlaylist(true);
+
+    try {
+      // Get current user's ID
+      const userResponse = await fetch('/api/spotify?action=profile');
+      const userData = await userResponse.json();
+
+      if (!userResponse.ok || !userData.id) {
+        throw new Error('Failed to get user profile');
+      }
+
+      // Create a playlist
+      const playlistName = `${selectedGame.name} Soundtrack - BoardGame Beats`;
+      
+      // Create a shorter description to avoid exceeding Spotify's limit (max 300 characters)
+      let playlistDescription = `A soundtrack for the board game "${selectedGame.name}" with genres: ${selectedGenres.join(', ')}`;
+      
+      // Add explanation if there's room (keeping total under 300 characters)
+      if (aiExplanation && (playlistDescription.length + aiExplanation.length) < 295) {
+        playlistDescription += `. ${aiExplanation}`;
+      } else if (aiExplanation) {
+        // If too long, truncate the explanation
+        const remainingChars = 295 - playlistDescription.length;
+        if (remainingChars > 10) { // Only add if we can include something meaningful
+          playlistDescription += `. ${aiExplanation.substring(0, remainingChars - 3)}...`;
+        }
+      }
+      
+      // Spotify has a description limit of 300 characters
+      if (playlistDescription.length > 300) {
+        playlistDescription = playlistDescription.substring(0, 297) + '...';
+      }
+
+      const createPlaylistResponse = await fetch(`/api/spotify?action=createPlaylist&userId=${userData.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: playlistName,
+          description: playlistDescription,
+          public: false,
+        }),
+      });
+
+      const playlistData = await createPlaylistResponse.json();
+
+      if (!createPlaylistResponse.ok || !playlistData.id) {
+        throw new Error('Failed to create playlist');
+      }
+
+      // Add tracks to the playlist
+      const trackUris = spotifyTracks.map(track => track.uri);
+      
+      const addTracksResponse = await fetch(`/api/spotify?action=addTracksToPlaylist&playlistId=${playlistData.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uris: trackUris.slice(0, Math.min(trackUris.length, 100)), // Spotify has a limit of 100 tracks per request
+        }),
+      });
+
+      if (!addTracksResponse.ok) {
+        throw new Error('Failed to add tracks to playlist');
+      }
+
+      // Save the playlist URL for the user to open in Spotify
+      setPlaylistUrl(playlistData.external_urls.spotify);
+
+      toast({
+        title: 'Playlist created',
+        description: 'Your playlist has been created in Spotify',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+
+    } catch (error) {
+      console.error('Error creating playlist:', error);
+      toast({
+        title: 'Failed to create playlist',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsCreatingPlaylist(false);
+    }
+  }, [selectedGame, selectedGenres, spotifyTracks, aiExplanation, session?.user?.accessToken, toast]);
 
   if (!selectedGame) {
     return (
@@ -265,23 +392,39 @@ export default function AtmospherePage() {
 
           <Divider my={4} />
 
-          <Flex justify="center" mt={4}>
+          <Flex justify="center" mt={4} direction="column" align="center" gap={4}>
             <Button 
               colorScheme="blue" 
               size="lg" 
               onClick={handleContinue}
               px={8}
-              isDisabled={selectedGenres.length === 0}
+              isLoading={isCreatingPlaylist}
+              loadingText="Creating Playlist"
+              isDisabled={selectedGenres.length === 0 || spotifyTracks.length === 0 || !session?.user?.accessToken}
             >
               Generate Playlist
             </Button>
-          </Flex>
 
-          {selectedGenres.length === 0 && (
-            <Text textAlign="center" color="red.500">
-              Please select at least one genre to continue
-            </Text>
-          )}
+            {playlistUrl && (
+              <Button
+                as="a"
+                href={playlistUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                colorScheme="green"
+                leftIcon={<Icon as={FaSpotify} />}
+                size="lg"
+              >
+                Play on Spotify
+              </Button>
+            )}
+
+            {selectedGenres.length === 0 && (
+              <Text textAlign="center" color="red.500">
+                Please select at least one genre to continue
+              </Text>
+            )}
+          </Flex>
         </VStack>
       </Container>
     </Box>
