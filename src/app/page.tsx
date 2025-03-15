@@ -13,17 +13,28 @@ import {
   useColorModeValue,
   SimpleGrid,
   Icon,
+  HStack,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
 import { FaMusic, FaDice, FaSpotify } from 'react-icons/fa';
+import { useSession, signIn } from 'next-auth/react';
 
 export default function Home() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const textColor = useColorModeValue('gray.800', 'gray.100');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+
+  const handleGetStarted = () => {
+    if (status === 'authenticated' && session?.user?.accessToken) {
+      router.push('/search');
+    } else {
+      signIn('spotify', { callbackUrl: '/search' });
+    }
+  };
 
   return (
     <Box bg={bgColor} minH="100vh">
@@ -53,12 +64,12 @@ export default function Home() {
                 size="lg" 
                 colorScheme="green" 
                 rightIcon={<FaSpotify />}
-                onClick={() => router.push('/search')}
+                onClick={handleGetStarted}
                 px={8}
                 py={6}
                 fontSize="lg"
               >
-                Get Started
+                {status === 'authenticated' ? 'Get Started' : 'Connect with Spotify'}
               </Button>
             </VStack>
             
@@ -145,10 +156,10 @@ export default function Home() {
             <Button 
               size="lg" 
               colorScheme="blue" 
-              onClick={() => router.push('/search')}
+              onClick={handleGetStarted}
               mt={8}
             >
-              Find Your Game
+              {status === 'authenticated' ? 'Find Your Game' : 'Connect with Spotify'}
             </Button>
           </VStack>
         </Container>
